@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Course {
+  id                   String            @id @default(uuid())
+  name                 String            @unique
+  originalFee          Int               @default(50000)
+  discountedFee        Int               @default(30000)
+  isActive             Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  badge                String?           @default("new")
+  category             String            @default("Tax & Accounting")
+  description          String            @default("Learn professional practices in tax & accounting.")
+  duration             Int               @default(36)
+  instructorBio        String            @default("Our faculty consists of leading tax consultants, legal experts, and chartered accountants in Pakistan with decades of experience in filing, litigation, and audit management.")
+  instructorImage      String            @default("https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop")
+  instructorName       String            @default("Premier Academy Faculty")
+  instructorTitle      String            @default("Senior Tax Consultants & Practitioners")
+  language             String            @default("Urdu & English")
+  level                String            @default("Intermediate")
+  longDescription      String            @default("This course provides complete, practical training covering regulations, FBR compliance, filing, and litigations. Ideal for practitioners, corporate managers, and students seeking career growth in Pakistan.")
+  requirements         String[]          @default(["Basic understanding of accounting principles", "Access to a computer with internet", "Willingness to learn and practice"])
+  thumbnail            String            @default("https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=340&fit=crop")
+  whatYouWillLearn     String[]          @default(["Understand core concepts and frameworks", "Apply knowledge to real-world scenarios", "Prepare for professional certifications", "Master FBR compliance requirements", "Build confidence in audit preparation", "Navigate complex tax regulations"])
+  lecturesPerLiveClass Int               @default(1)
+  modules              CourseModule[]
+  reviews              CourseReview[]
+  enrollments          Enrollment[]
+  recordedLectures     RecordedLecture[]
+  batches              Batch[]           @relation("BatchCourses")
+}
+
+model CourseModule {
+  id        String         @id @default(uuid())
+  courseId  String
+  title     String
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  lessons   CourseLesson[]
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model CourseLesson {
+  id        String       @id @default(uuid())
+  moduleId  String
+  title     String
+  duration  Int          @default(15)
+  isPreview Boolean      @default(false)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  module    CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+}
+
+model CourseReview {
+  id        String   @id @default(uuid())
+  courseId  String
+  name      String
+  rating    Int
+  content   String
+  date      String
+  createdAt DateTime @default(now())
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model Batch {
+  id             String       @id @default(uuid())
+  name           String       @unique
+  startDate      DateTime
+  endDate        DateTime
+  isActive       Boolean      @default(true)
+  thumbnail      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  status         String       @default("admission")
+  classesPerWeek Int          @default(3)
+  admissions     Admission[]
+  classes        Class[]
+  enrollments    Enrollment[]
+  courses        Course[]     @relation("BatchCourses")
+}
+
+model Admission {
+  id                String   @id @default(uuid())
+  fullName          String
+  fatherName        String?
+  cnic              String   @unique
+  dateOfBirth       DateTime
+  gender            String
+  whatsapp          String
+  email             String   @unique
+  postalAddress     String
+  lastQualification String?
+  passingYear       String?
+  institute         String?
+  emergencyName     String?
+  emergencyRelation String?
+  emergencyContact  String?
+  cnicFile          String?
+  photoFile         String?
+  paymentProof      String?
+  selectedCourses   String[]
+  totalAmount       Int
+  paymentMethod     String?
+  status            String   @default("pending")
+  remarks           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  userId            String?
+  batchId           String?
+  batch             Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user              User?    @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([email])
+  @@index([cnic])
+}
+
+model User {
+  id                     String                  @id @default(uuid())
+  email                  String                  @unique
+  name                   String
+  role                   String                  @default("student")
+  password               String
+  isActive               Boolean                 @default(true)
+  currentToken           String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  admissions             Admission[]
+  attendances            Attendance[]
+  auditLogs              AuditLog[]
+  deviceSessions         DeviceSession[]
+  enrollments            Enrollment[]
+  participantPermissions ParticipantPermission[]
+  playbackHistories      PlaybackHistory[]
+  waitingParticipants    WaitingParticipant[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+  batchName String?
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  batchId   String?
+  batch     Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([batchId])
+}
+
+model Class {
+  id                      String       @id @default(uuid())
+  batchName               String
+  courseName              String
+  title                   String
+  scheduledStart          DateTime
+  scheduledEnd            DateTime
+  jitsiRoomName           String       @unique
+  status                  String       @default("scheduled")
+  recordingUrl            String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  batchId                 String?
+  allowStudentCamera      Boolean      @default(true)
+  allowStudentMic         Boolean      @default(true)
+  allowStudentScreenshare Boolean      @default(true)
+  recordingLive           Boolean      @default(false)
+  zoomMeetingId           String?
+  zoomPasscode            String?
+  batch                   Batch?       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  liveSession             LiveSession?
+
+  @@index([scheduledStart])
+  @@index([batchName])
+  @@index([status])
+}
+
+model RecordedLecture {
+  id                String            @id @default(uuid())
+  courseId          String
+  title             String
+  recordingUrl      String
+  recordingLive     Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  duration          Int               @default(0)
+  classNo           Int               @default(1)
+  zoomFileId        String?           @unique
+  playbackHistories PlaybackHistory[]
+  course            Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model DeviceSession {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  ipAddress    String
+  userAgent    String
+  deviceType   String
+  os           String
+  browser      String
+  isActive     Boolean  @default(true)
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model BannedUser {
+  id       String   @id @default(uuid())
+  email    String   @unique
+  cnic     String?  @unique
+  reason   String
+  bannedAt DateTime @default(now())
+  bannedBy String
+}
+
+model LiveSession {
+  id          String                  @id @default(uuid())
+  classId     String                  @unique
+  hostId      String
+  status      String                  @default("live")
+  startedAt   DateTime                @default(now())
+  endedAt     DateTime?
+  attendance  Attendance[]
+  class       Class                   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  permissions ParticipantPermission[]
+  waiting     WaitingParticipant[]
+}
+
+model WaitingParticipant {
+  id            String      @id @default(uuid())
+  liveSessionId String
+  userId        String
+  status        String      @default("waiting")
+  requestedAt   DateTime    @default(now())
+  respondedAt   DateTime?
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId])
+}
+
+model ParticipantPermission {
+  id               String      @id @default(uuid())
+  liveSessionId    String
+  userId           String
+  allowMic         Boolean     @default(true)
+  allowCamera      Boolean     @default(true)
+  allowScreenshare Boolean     @default(false)
+  isMuted          Boolean     @default(false)
+  updatedAt        DateTime    @updatedAt
+  liveSession      LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId])
+  @@index([userId])
+}
+
+model Attendance {
+  id             String      @id @default(uuid())
+  liveSessionId  String
+  userId         String
+  joinTime       DateTime    @default(now())
+  leaveTime      DateTime?
+  duration       Int         @default(0)
+  ipAddress      String
+  browser        String
+  device         String
+  os             String
+  reconnectCount Int         @default(0)
+  liveSession    LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId])
+  @@index([userId])
+}
+
+model PlaybackHistory {
+  id                String          @id @default(uuid())
+  userId            String
+  recordedLectureId String
+  durationWatched   Int             @default(0)
+  lastPosition      Int             @default(0)
+  viewedAt          DateTime        @default(now())
+  lecture           RecordedLecture @relation(fields: [recordedLectureId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([recordedLectureId])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String
+  action       String
+  targetUserId String?
+  details      String?
+  ipAddress    String
+  userAgent    String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+}
