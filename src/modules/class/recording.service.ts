@@ -262,13 +262,15 @@ export class RecordingService {
       },
     });
 
+    const isYoutube = /(?:youtube\.com|youtu\.be)/.test(lecture.recordingUrl);
+
     return {
       id: lecture.id,
       title: lecture.title,
       courseName: lecture.course.name,
       duration: lecture.duration,
       lastPosition: history?.lastPosition || 0,
-      streamUrl: lecture.recordingUrl, // Secure tokenized URL or cloud stream
+      streamUrl: isYoutube ? null : lecture.recordingUrl,
       disableDownload: true,
       playbackSpeedEnabled: true,
     };
