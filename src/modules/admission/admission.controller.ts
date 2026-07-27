@@ -30,12 +30,22 @@ export class AdmissionController {
     return this.admissionService.create(dto);
   }
 
-  // Admin — list all applications
+  // Admin — list all applications with pagination and search
   @Get()
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard, RolesGuard)
   @Roles('admin')
-  findAll(@Query('status') status?: string) {
-    return this.admissionService.findAll(status);
+  findAll(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.admissionService.findAll(
+      status,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+      search,
+    );
   }
 
   // Admin — get stats

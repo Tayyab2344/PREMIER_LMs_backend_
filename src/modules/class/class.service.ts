@@ -134,12 +134,53 @@ export class ClassService {
     }
   }
 
-  async findAll(status?: string) {
-    const where = status ? { status } : {};
-    return this.prisma.class.findMany({
-      where,
-      orderBy: { scheduledStart: 'desc' },
-    });
+  async findAll(status?: string, page?: number, limit?: number, search?: string) {
+    const pageNum = page ? Math.max(1, Number(page)) : undefined;
+    const limitNum = limit ? Math.max(1, Number(limit)) : undefined;
+
+    const where: any = {};
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { courseName: { contains: search, mode: 'insensitive' } },
+        { batchName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (!pageNum || !limitNum) {
+      const data = await this.prisma.class.findMany({
+        where,
+        orderBy: { scheduledStart: 'desc' },
+      });
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 },
+      };
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [data, total] = await Promise.all([
+      this.prisma.class.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { scheduledStart: 'desc' },
+      }),
+      this.prisma.class.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    };
   }
 
   async findUpcoming() {
@@ -301,13 +342,15 @@ export class ClassService {
     }
     return { message: 'Zoom meeting ended successfully.' };
   }
-  async findUpcomingForStudent(userId: string) {
+  async findUpcomingForStudent(userId: string, page?: number, limit?: number) {
     const enrollments = await this.prisma.enrollment.findMany({
       where: { userId, isActive: true },
       include: { course: { select: { name: true } } },
     });
 
-    if (enrollments.length === 0) return [];
+    if (enrollments.length === 0) {
+      return page && limit ? { data: [], meta: { total: 0, page, limit, totalPages: 1 } } : [];
+    }
 
     const conditions = enrollments.map((e: any) => {
       if (e.batchName) {
@@ -321,22 +364,52 @@ export class ClassService {
       };
     });
 
-    return this.prisma.class.findMany({
-      where: {
-        status: { in: ['scheduled', 'live'] },
-        OR: conditions,
+    const where = {
+      status: { in: ['scheduled', 'live'] },
+      OR: conditions,
+    };
+
+    if (!page || !limit) {
+      return this.prisma.class.findMany({
+        where,
+        orderBy: { scheduledStart: 'asc' },
+      });
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [data, total] = await Promise.all([
+      this.prisma.class.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { scheduledStart: 'asc' },
+      }),
+      this.prisma.class.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
-      orderBy: { scheduledStart: 'asc' },
-    });
+    };
   }
 
-  async findPastForStudent(userId: string) {
+  async findPastForStudent(userId: string, page?: number, limit?: number) {
     const enrollments = await this.prisma.enrollment.findMany({
       where: { userId, isActive: true },
       include: { course: { select: { name: true } } },
     });
 
-    if (enrollments.length === 0) return [];
+    if (enrollments.length === 0) {
+      return page && limit ? { data: [], meta: { total: 0, page, limit, totalPages: 1 } } : [];
+    }
 
     const conditions = enrollments.map((e: any) => {
       if (e.batchName) {
@@ -350,16 +423,44 @@ export class ClassService {
       };
     });
 
-    return this.prisma.class.findMany({
-      where: {
-        status: 'completed',
-        OR: conditions,
+    const where = {
+      status: 'completed',
+      OR: conditions,
+    };
+
+    if (!page || !limit) {
+      return this.prisma.class.findMany({
+        where,
+        orderBy: { scheduledStart: 'desc' },
+      });
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [data, total] = await Promise.all([
+      this.prisma.class.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { scheduledStart: 'desc' },
+      }),
+      this.prisma.class.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
-      orderBy: { scheduledStart: 'desc' },
-    });
+    };
   }
 
-  async findRecordingsForStudent(userId: string) {
+  async findRecordingsForStudent(userId: string, page?: number, limit?: number) {
     const enrollments = await this.prisma.enrollment.findMany({
       where: { userId, isActive: true },
       include: {
@@ -368,7 +469,9 @@ export class ClassService {
       },
     });
 
-    if (enrollments.length === 0) return [];
+    if (enrollments.length === 0) {
+      return page && limit ? { data: [], meta: { total: 0, page, limit, totalPages: 1 } } : [];
+    }
 
     const now = new Date();
     const allLectures: any[] = [];
@@ -432,7 +535,22 @@ export class ClassService {
       allLectures.push(...mapped);
     }
 
-    return allLectures;
+    if (!page || !limit) return allLectures;
+
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const skip = (pageNum - 1) * limitNum;
+    const paginated = allLectures.slice(skip, skip + limitNum);
+
+    return {
+      data: paginated,
+      meta: {
+        total: allLectures.length,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(allLectures.length / limitNum) || 1,
+      },
+    };
   }
 
   private extractYoutubeVideoId(url: string): string | null {

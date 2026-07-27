@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -25,12 +26,20 @@ export class CourseController {
     return this.courseService.findAllActive();
   }
 
-  // Admin only — includes inactive
+  // Admin only — includes inactive with pagination
   @Get('all')
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard, RolesGuard)
   @Roles('admin')
-  findAll() {
-    return this.courseService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.courseService.findAll(
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+      search,
+    );
   }
 
   @Get(':id')

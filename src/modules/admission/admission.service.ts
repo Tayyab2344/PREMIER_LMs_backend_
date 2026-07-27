@@ -77,17 +77,60 @@ export class AdmissionService {
     return newAdmission;
   }
 
-  async findAll(status?: string) {
-    const where = status ? { status } : {};
-    return this.prisma.admission.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
+  async findAll(status?: string, page?: number, limit?: number, search?: string) {
+    const pageNum = page ? Math.max(1, Number(page)) : undefined;
+    const limitNum = limit ? Math.max(1, Number(limit)) : undefined;
+
+    const where: any = {};
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { cnic: { contains: search, mode: 'insensitive' } },
+        { whatsapp: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (!pageNum || !limitNum) {
+      const data = await this.prisma.admission.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
         },
+      });
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 },
+      };
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [data, total] = await Promise.all([
+      this.prisma.admission.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.admission.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
-    });
+    };
   }
 
   async findById(id: string) {

@@ -49,8 +49,18 @@ export class ClassController {
   @Get()
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard, RolesGuard)
   @Roles('admin')
-  findAll(@Query('status') status?: string) {
-    return this.classService.findAll(status);
+  findAll(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.classService.findAll(
+      status,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+      search,
+    );
   }
 
   // Admin — upcoming count for dashboard
@@ -64,22 +74,46 @@ export class ClassController {
   // Student — my upcoming classes
   @Get('my/upcoming')
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
-  findMyUpcoming(@CurrentUser('sub') userId: string) {
-    return this.classService.findUpcomingForStudent(userId);
+  findMyUpcoming(
+    @CurrentUser('sub') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.classService.findUpcomingForStudent(
+      userId,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   // Student — my past classes
   @Get('my/past')
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
-  findMyPast(@CurrentUser('sub') userId: string) {
-    return this.classService.findPastForStudent(userId);
+  findMyPast(
+    @CurrentUser('sub') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.classService.findPastForStudent(
+      userId,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   // Student — my recordings
   @Get('my/recordings')
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
-  findMyRecordings(@CurrentUser('sub') userId: string) {
-    return this.classService.findRecordingsForStudent(userId);
+  findMyRecordings(
+    @CurrentUser('sub') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.classService.findRecordingsForStudent(
+      userId,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   // Generate recording token (protected, checks enrollment + 2-month window)

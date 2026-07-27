@@ -51,24 +51,66 @@ export class BatchService implements OnModuleInit {
     });
   }
 
-  async findAll() {
-    return this.prisma.batch.findMany({
-      include: {
-        courses: true,
-        enrollments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              }
+  async findAll(page?: number, limit?: number, search?: string) {
+    const pageNum = page ? Math.max(1, Number(page)) : undefined;
+    const limitNum = limit ? Math.max(1, Number(limit)) : undefined;
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { status: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const includeConfig = {
+      courses: true,
+      enrollments: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             }
           }
         }
+      }
+    };
+
+    if (!pageNum || !limitNum) {
+      const data = await this.prisma.batch.findMany({
+        where,
+        include: includeConfig,
+        orderBy: { startDate: 'desc' },
+      });
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 },
+      };
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [data, total] = await Promise.all([
+      this.prisma.batch.findMany({
+        where,
+        include: includeConfig,
+        skip,
+        take: limitNum,
+        orderBy: { startDate: 'desc' },
+      }),
+      this.prisma.batch.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
-      orderBy: { startDate: 'desc' },
-    });
+    };
   }
 
   async findPublic() {

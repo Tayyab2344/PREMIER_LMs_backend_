@@ -7,23 +7,66 @@ import { Prisma } from '@prisma/client';
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(role?: string) {
-    const where = role ? { role } : {};
-    return this.prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        _count: {
-          select: { enrollments: true },
-        },
+  async findAll(role?: string, page?: number, limit?: number, search?: string) {
+    const pageNum = page ? Math.max(1, Number(page)) : undefined;
+    const limitNum = limit ? Math.max(1, Number(limit)) : undefined;
+
+    const where: any = {};
+    if (role && role !== 'all') {
+      where.role = role;
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const selectFields = {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      _count: {
+        select: { enrollments: true },
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
+
+    if (!pageNum || !limitNum) {
+      const data = await this.prisma.user.findMany({
+        where,
+        select: selectFields,
+        orderBy: { createdAt: 'desc' },
+      });
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 },
+      };
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: selectFields,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    };
   }
 
   async findById(id: string) {

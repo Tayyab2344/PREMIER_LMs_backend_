@@ -37,33 +37,74 @@ export class CourseService {
     });
   }
 
-  async findAll() {
-    return this.prisma.course.findMany({
-      include: {
-        modules: {
-          include: {
-            lessons: {
-              orderBy: { sortOrder: 'asc' }
-            }
-          },
-          orderBy: { sortOrder: 'asc' }
+  async findAll(page?: number, limit?: number, search?: string) {
+    const pageNum = page ? Math.max(1, Number(page)) : undefined;
+    const limitNum = limit ? Math.max(1, Number(limit)) : undefined;
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { category: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const includeConfig = {
+      modules: {
+        include: {
+          lessons: { orderBy: { sortOrder: 'asc' as const } }
         },
-        reviews: {
-          orderBy: { createdAt: 'desc' }
-        },
-        batches: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            name: true,
-            startDate: true,
-            endDate: true,
-            status: true,
-          }
-        }
+        orderBy: { sortOrder: 'asc' as const }
       },
-      orderBy: { createdAt: 'asc' },
-    });
+      reviews: {
+        orderBy: { createdAt: 'desc' as const }
+      },
+      batches: {
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          status: true,
+        }
+      }
+    };
+
+    if (!pageNum || !limitNum) {
+      const data = await this.prisma.course.findMany({
+        where,
+        include: includeConfig,
+        orderBy: { createdAt: 'asc' },
+      });
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length, totalPages: 1 },
+      };
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [data, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        include: includeConfig,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.course.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    };
   }
 
   async findById(id: string) {
