@@ -8,19 +8,40 @@ export class CourseService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAllActive() {
+    // Find active batches (open for admission or active classes)
+    const activeBatches = await this.prisma.batch.findMany({
+      where: {
+        isActive: true,
+        status: { in: ['admission', 'active', 'classes'] },
+      },
+      select: {
+        courses: { select: { id: true } },
+      },
+    });
+
+    const linkedCourseIds = Array.from(
+      new Set(activeBatches.flatMap((b) => b.courses.map((c) => c.id))),
+    );
+
+    const where: Prisma.CourseWhereInput = { isActive: true };
+
+    if (linkedCourseIds.length > 0) {
+      where.id = { in: linkedCourseIds };
+    }
+
     return this.prisma.course.findMany({
-      where: { isActive: true },
+      where,
       include: {
         modules: {
           include: {
             lessons: {
-              orderBy: { sortOrder: 'asc' }
-            }
+              orderBy: { sortOrder: 'asc' },
+            },
           },
-          orderBy: { sortOrder: 'asc' }
+          orderBy: { sortOrder: 'asc' },
         },
         reviews: {
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
         },
         batches: {
           where: { isActive: true },
@@ -30,8 +51,8 @@ export class CourseService {
             startDate: true,
             endDate: true,
             status: true,
-          }
-        }
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     });
