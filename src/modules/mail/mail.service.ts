@@ -41,6 +41,19 @@ export class MailService {
     }
   }
 
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/\n\s+\n/g, '\n\n')
+      .trim();
+  }
+
   private async sendMail(to: string, subject: string, htmlContent: string) {
     if (!to || typeof to !== 'string' || !to.includes('@')) {
       this.logger.warn(`Skipping email dispatch: recipient address "${to}" is invalid or blank.`);
@@ -48,12 +61,20 @@ export class MailService {
     }
 
     const from = process.env.SMTP_FROM || '"Premier Academy" <recyconnect5@gmail.com>';
+    const plainText = this.stripHtml(htmlContent);
+
     try {
       const info = await this.transporter.sendMail({
         from,
         to,
         subject,
+        text: plainText,
         html: htmlContent,
+        headers: {
+          'X-Priority': '3',
+          'X-MSMail-Priority': 'Normal',
+          'Importance': 'Normal',
+        },
       });
       this.logger.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
       return info;

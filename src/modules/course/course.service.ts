@@ -8,11 +8,11 @@ export class CourseService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAllActive() {
-    // Find active batches (open for admission or active classes)
-    const activeBatches = await this.prisma.batch.findMany({
+    // Find active batches strictly open for admission (status = 'admission', isActive = true)
+    const admissionBatches = await this.prisma.batch.findMany({
       where: {
         isActive: true,
-        status: { in: ['admission', 'active', 'classes'] },
+        status: 'admission',
       },
       select: {
         courses: { select: { id: true } },
@@ -20,17 +20,19 @@ export class CourseService {
     });
 
     const linkedCourseIds = Array.from(
-      new Set(activeBatches.flatMap((b) => b.courses.map((c) => c.id))),
+      new Set(admissionBatches.flatMap((b) => b.courses.map((c) => c.id))),
     );
 
-    const where: Prisma.CourseWhereInput = { isActive: true };
-
-    if (linkedCourseIds.length > 0) {
-      where.id = { in: linkedCourseIds };
+    // If no batch is currently open for admission, admissions are closed
+    if (linkedCourseIds.length === 0) {
+      return [];
     }
 
     return this.prisma.course.findMany({
-      where,
+      where: {
+        isActive: true,
+        id: { in: linkedCourseIds },
+      },
       include: {
         modules: {
           include: {
@@ -44,7 +46,7 @@ export class CourseService {
           orderBy: { createdAt: 'desc' },
         },
         batches: {
-          where: { isActive: true },
+          where: { isActive: true, status: 'admission' },
           select: {
             id: true,
             name: true,
