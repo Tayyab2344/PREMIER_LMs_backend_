@@ -139,6 +139,7 @@ export class AuthService {
             lastQualification: true,
             selectedCourses: true,
             status: true,
+            photoFile: true,
           },
         },
         enrollments: {
