@@ -17,6 +17,11 @@ export class MailService {
       port,
       secure: port === 465,
       auth: user && pass ? { user, pass } : undefined,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
     });
 
     // Verify SMTP connection on startup
@@ -42,7 +47,7 @@ export class MailService {
       return;
     }
 
-    const from = process.env.SMTP_FROM || '"Premier Academy" <tayyabatiq300@gmail.com>';
+    const from = process.env.SMTP_FROM || '"Premier Academy" <recyconnect5@gmail.com>';
     try {
       const info = await this.transporter.sendMail({
         from,
@@ -54,6 +59,7 @@ export class MailService {
       return info;
     } catch (error) {
       this.logger.error(`Failed to send email to ${to}:`, error);
+      throw error;
     }
   }
 

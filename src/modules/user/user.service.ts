@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   async findAll(role?: string, page?: number, limit?: number, search?: string) {
     const pageNum = page ? Math.max(1, Number(page)) : undefined;
@@ -210,6 +214,16 @@ export class UserService {
 
       return user;
     });
+
+    try {
+      await this.mailService.sendAdmissionApproved(
+        result.email,
+        result.name,
+        rawPassword,
+      );
+    } catch (err) {
+      console.error('Failed to send student welcome email:', err);
+    }
 
     return {
       user: {

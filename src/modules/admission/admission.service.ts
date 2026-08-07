@@ -66,13 +66,15 @@ export class AdmissionService {
       },
     });
 
-    this.mailService.sendAdmissionReceived(
-      newAdmission.email,
-      newAdmission.fullName,
-      newAdmission.selectedCourses,
-    ).catch((err) =>
-      console.error('Failed to send admission received email:', err),
-    );
+    try {
+      await this.mailService.sendAdmissionReceived(
+        newAdmission.email,
+        newAdmission.fullName,
+        newAdmission.selectedCourses,
+      );
+    } catch (err) {
+      console.error('Failed to send admission received email:', err);
+    }
 
     return newAdmission;
   }
@@ -164,13 +166,15 @@ export class AdmissionService {
     if (dto.status === 'approved') {
       const result = await this.approveApplication(admission, dto.remarks);
       
-      this.mailService.sendAdmissionApproved(
-        result.user.email,
-        result.user.name,
-        result.generatedPassword || undefined,
-      ).catch((err) =>
-        console.error('Failed to send admission approved email:', err),
-      );
+      try {
+        await this.mailService.sendAdmissionApproved(
+          result.user.email,
+          result.user.name,
+          result.generatedPassword || undefined,
+        );
+      } catch (err) {
+        console.error('Failed to send admission approved email:', err);
+      }
 
       return result;
     }
@@ -184,13 +188,15 @@ export class AdmissionService {
       },
     });
 
-    this.mailService.sendAdmissionRejected(
-      rejectedAdmission.email,
-      rejectedAdmission.fullName,
-      dto.remarks,
-    ).catch((err) =>
-      console.error('Failed to send admission rejected email:', err),
-    );
+    try {
+      await this.mailService.sendAdmissionRejected(
+        rejectedAdmission.email,
+        rejectedAdmission.fullName,
+        dto.remarks,
+      );
+    } catch (err) {
+      console.error('Failed to send admission rejected email:', err);
+    }
 
     return rejectedAdmission;
   }
