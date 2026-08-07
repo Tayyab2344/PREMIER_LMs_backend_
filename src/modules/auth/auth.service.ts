@@ -21,7 +21,7 @@ export class AuthService {
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('Account has been deactivated');
+      throw new UnauthorizedException('Your student account is inactive or your admission application was rejected. Portal access is disabled.');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

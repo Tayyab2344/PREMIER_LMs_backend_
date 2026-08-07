@@ -188,6 +188,24 @@ export class AdmissionService {
       },
     });
 
+    // Deactivate user account if one exists so student cannot access portal
+    const targetEmail = (admission.email || '').toLowerCase();
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: admission.userId || undefined },
+          { email: targetEmail },
+        ],
+      },
+    });
+
+    if (existingUser && existingUser.role === 'student') {
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: { isActive: false },
+      });
+    }
+
     try {
       await this.mailService.sendAdmissionRejected(
         rejectedAdmission.email,
