@@ -282,7 +282,7 @@ export class ZoomService {
             type: 2, // Scheduled meeting
             start_time: params.startTime.toISOString(),
             duration: params.durationMinutes,
-            timezone: 'UTC',
+            timezone: 'Asia/Karachi',
             password: passcode,
             settings: {
               host_video: true,
@@ -425,6 +425,7 @@ export class ZoomService {
           ...(params.topic && { topic: params.topic }),
           ...(params.startTime && { start_time: params.startTime.toISOString() }),
           ...(params.durationMinutes && { duration: params.durationMinutes }),
+          timezone: 'Asia/Karachi',
         }),
       });
 

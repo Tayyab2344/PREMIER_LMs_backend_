@@ -22,6 +22,19 @@ export class ClassService {
     private readonly mailService: MailService,
   ) {}
 
+  private parsePktDate(dateInput?: string | Date | null): Date {
+    if (!dateInput) return new Date();
+    if (dateInput instanceof Date) return dateInput;
+
+    const str = String(dateInput).trim();
+    // If date string has format YYYY-MM-DDTHH:mm without timezone offset, append PKT (+05:00)
+    if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(str)) {
+      return new Date(`${str.replace(' ', 'T')}+05:00`);
+    }
+
+    return new Date(str);
+  }
+
   async create(dto: CreateClassDto) {
     const jitsiRoomName = `premier-${dto.batchName.replace(/\s+/g, '-').toLowerCase()}-${uuidv4().slice(0, 8)}`;
 
@@ -39,9 +52,10 @@ export class ClassService {
     let zoomMeetingId = dto.zoomMeetingId || null;
     let zoomPasscode = dto.zoomPasscode || null;
 
+    const start = this.parsePktDate(dto.scheduledStart);
+    const end = this.parsePktDate(dto.scheduledEnd);
+
     if (!zoomMeetingId) {
-      const start = new Date(dto.scheduledStart);
-      const end = new Date(dto.scheduledEnd);
       let durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
       if (isNaN(durationMinutes) || durationMinutes <= 0) {
         durationMinutes = 60; // default to 1 hour
@@ -76,8 +90,8 @@ export class ClassService {
         batchName: dto.batchName,
         courseName: dto.courseName,
         title: dto.title,
-        scheduledStart: new Date(dto.scheduledStart),
-        scheduledEnd: new Date(dto.scheduledEnd),
+        scheduledStart: start,
+        scheduledEnd: end,
         jitsiRoomName,
         allowStudentScreenshare: dto.allowStudentScreenshare !== undefined ? dto.allowStudentScreenshare : true,
         allowStudentMic: dto.allowStudentMic !== undefined ? dto.allowStudentMic : true,
@@ -213,13 +227,13 @@ export class ClassService {
 
     // Sync meeting details to Zoom if it exists
     if (cls.zoomMeetingId && (dto.title || dto.scheduledStart || dto.scheduledEnd)) {
-      const start = dto.scheduledStart ? new Date(dto.scheduledStart) : cls.scheduledStart;
-      const end = dto.scheduledEnd ? new Date(dto.scheduledEnd) : cls.scheduledEnd;
+      const start = dto.scheduledStart ? this.parsePktDate(dto.scheduledStart) : cls.scheduledStart;
+      const end = dto.scheduledEnd ? this.parsePktDate(dto.scheduledEnd) : cls.scheduledEnd;
       const durationMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
 
       this.zoomService.updateZoomMeeting(cls.zoomMeetingId, {
         topic: dto.title,
-        startTime: dto.scheduledStart ? new Date(dto.scheduledStart) : undefined,
+        startTime: dto.scheduledStart ? start : undefined,
         durationMinutes,
       }).catch((err) => this.logger.error(`Failed to update Zoom meeting ${cls.zoomMeetingId}`, err));
     }
@@ -228,8 +242,8 @@ export class ClassService {
       where: { id },
       data: {
         ...dto,
-        scheduledStart: dto.scheduledStart ? new Date(dto.scheduledStart) : undefined,
-        scheduledEnd: dto.scheduledEnd ? new Date(dto.scheduledEnd) : undefined,
+        scheduledStart: dto.scheduledStart ? this.parsePktDate(dto.scheduledStart) : undefined,
+        scheduledEnd: dto.scheduledEnd ? this.parsePktDate(dto.scheduledEnd) : undefined,
       },
     });
   }

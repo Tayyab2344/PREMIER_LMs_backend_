@@ -44,14 +44,27 @@ export class MailService {
   private stripHtml(html: string): string {
     return html
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
       .replace(/<\/li>/gi, '\n')
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
-      .replace(/\n\s+\n/g, '\n\n')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/\n\s*\n/g, '\n\n')
       .trim();
+  }
+
+  private getAppUrl(): string {
+    const rawUrl = process.env.APP_URL;
+    if (rawUrl && !rawUrl.includes('localhost') && !rawUrl.includes('127.0.0.1')) {
+      return rawUrl.replace(/\/$/, '');
+    }
+    return 'https://premier-lms-frontend.vercel.app';
   }
 
   private async sendMail(to: string, subject: string, htmlContent: string) {
@@ -60,20 +73,24 @@ export class MailService {
       return;
     }
 
-    const from = process.env.SMTP_FROM || '"Premier Academy" <recyconnect5@gmail.com>';
+    const senderEmail = process.env.SMTP_USER || 'recyconnect5@gmail.com';
+    const from = process.env.SMTP_FROM || `"Premier Academy" <${senderEmail}>`;
     const plainText = this.stripHtml(htmlContent);
 
     try {
       const info = await this.transporter.sendMail({
         from,
         to,
+        replyTo: senderEmail,
         subject,
         text: plainText,
         html: htmlContent,
         headers: {
-          'X-Priority': '3',
-          'X-MSMail-Priority': 'Normal',
-          'Importance': 'Normal',
+          'Auto-Submitted': 'auto-generated',
+          'X-Auto-Response-Suppress': 'OOF, AutoReply, All',
+          'List-Unsubscribe': `<mailto:${senderEmail}?subject=unsubscribe>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          'Feedback-ID': 'transactional:premier-lms:gmail',
         },
       });
       this.logger.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
@@ -86,13 +103,17 @@ export class MailService {
 
   // Common wrapper styling for professional templates
   private getEmailWrapper(title: string, bodyHtml: string): string {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = this.getAppUrl();
+    const displayDomain = appUrl.replace(/^https?:\/\//, '');
+
     return `
       <!DOCTYPE html>
-      <html>
+      <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="x-apple-disable-message-reformatting">
         <title>${title}</title>
         <style>
           body {
@@ -216,6 +237,10 @@ export class MailService {
         </style>
       </head>
       <body>
+        <!-- Hidden Preheader Text for Inbox Preview -->
+        <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+          ${title} - Premier Academy
+        </div>
         <div class="email-container">
           <div class="email-header">
             <h1>Premier Academy</h1>
@@ -226,7 +251,7 @@ export class MailService {
           </div>
           <div class="email-footer">
             <p>&copy; ${new Date().getFullYear()} Premier LMS. All rights reserved.</p>
-            <p>Need support? Visit our website at <a href="${appUrl}">${appUrl.replace(/https?:\/\//, '')}</a></p>
+            <p>Need support? Visit our website at <a href="${appUrl}" target="_blank" rel="noopener noreferrer">${displayDomain}</a></p>
           </div>
         </div>
       </body>
@@ -347,10 +372,12 @@ export class MailService {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
+            timeZone: 'Asia/Karachi',
           });
           formattedTime = dObj.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: 'Asia/Karachi',
             timeZoneName: 'short',
           });
         }
