@@ -13,11 +13,17 @@ import { diskStorage } from 'multer';
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { extname, join } from 'path';
-import { existsSync, promises as fsPromises } from 'fs';
+import { existsSync, mkdirSync, promises as fsPromises } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { CloudinaryService } from './cloudinary.service';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 @Controller('uploads')
@@ -33,6 +39,10 @@ export class UploadController {
       storage: diskStorage({
         destination: (req, file, cb) => {
           const uploadDir = process.env.UPLOAD_DIR || './uploads';
+          const fullPath = join(process.cwd(), uploadDir);
+          if (!existsSync(fullPath)) {
+            mkdirSync(fullPath, { recursive: true });
+          }
           cb(null, uploadDir);
         },
         filename: (req, file, cb) => {
@@ -42,12 +52,15 @@ export class UploadController {
       }),
       limits: { fileSize: MAX_SIZE },
       fileFilter: (req, file, cb) => {
-        if (ALLOWED_TYPES.includes(file.mimetype)) {
+        const fileExt = extname(file.originalname).toLowerCase();
+        const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+
+        if (ALLOWED_TYPES.includes(file.mimetype) || allowedExts.includes(fileExt)) {
           cb(null, true);
         } else {
           cb(
             new BadRequestException(
-              'Only JPG, PNG and PDF files are allowed',
+              'Only JPG, PNG, WEBP and PDF files are allowed',
             ),
             false,
           );
@@ -68,21 +81,20 @@ export class UploadController {
     if (isImage) {
       try {
         const cloudinaryUrl = await this.cloudinaryService.uploadFile(file.path);
-        url = cloudinaryUrl;
-        filename = cloudinaryUrl;
+        if (cloudinaryUrl) {
+          url = cloudinaryUrl;
+          filename = cloudinaryUrl;
 
-        // Clean up the local temp file
-        if (existsSync(file.path)) {
-          await fsPromises.unlink(file.path);
+          // Clean up local temp file if Cloudinary upload succeeded
+          if (existsSync(file.path)) {
+            await fsPromises.unlink(file.path).catch(() => {});
+          }
         }
       } catch (error: any) {
-        // Clean up local temp file on error
-        if (existsSync(file.path)) {
-          await fsPromises.unlink(file.path).catch(() => {});
-        }
-        throw new BadRequestException(
-          `Failed to upload image to Cloudinary: ${error.message || error}`,
-        );
+        console.warn(`Cloudinary upload failed, falling back to local storage: ${error.message || error}`);
+        // Fallback: retain local file and serve via local endpoint
+        url = `/api/uploads/${file.filename}`;
+        filename = file.filename;
       }
     }
 
