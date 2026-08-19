@@ -9,11 +9,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync, promises as fsPromises } from 'fs';
+import { tmpdir } from 'os';
 import { ConfigService } from '@nestjs/config';
 import { CloudinaryService } from './cloudinary.service';
 
@@ -36,20 +37,7 @@ export class UploadController {
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadDir = process.env.UPLOAD_DIR || './uploads';
-          const fullPath = join(process.cwd(), uploadDir);
-          if (!existsSync(fullPath)) {
-            mkdirSync(fullPath, { recursive: true });
-          }
-          cb(null, uploadDir);
-        },
-        filename: (req, file, cb) => {
-          const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
-          cb(null, uniqueName);
-        },
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_SIZE },
       fileFilter: (req, file, cb) => {
         const fileExt = extname(file.originalname).toLowerCase();
@@ -69,58 +57,80 @@ export class UploadController {
     }),
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
+    if (!file || !file.buffer) {
       throw new BadRequestException('No file provided');
     }
 
-    let url = `/api/uploads/${file.filename}`;
-    let filename = file.filename;
+    const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
 
-    const isImage = file.mimetype.startsWith('image/');
-
-    if (isImage) {
-      try {
-        const cloudinaryUrl = await this.cloudinaryService.uploadFile(file.path);
-        if (cloudinaryUrl) {
-          url = cloudinaryUrl;
-          filename = cloudinaryUrl;
-
-          // Clean up local temp file if Cloudinary upload succeeded
-          if (existsSync(file.path)) {
-            await fsPromises.unlink(file.path).catch(() => {});
-          }
-        }
-      } catch (error: any) {
-        console.warn(`Cloudinary upload failed, falling back to local storage: ${error.message || error}`);
-        // Fallback: retain local file and serve via local endpoint
-        url = `/api/uploads/${file.filename}`;
-        filename = file.filename;
+    // Try Cloudinary stream upload first
+    try {
+      const cloudinaryUrl = await this.cloudinaryService.uploadBuffer(
+        file.buffer,
+        file.mimetype,
+      );
+      if (cloudinaryUrl) {
+        return {
+          filename: cloudinaryUrl,
+          originalName: file.originalname,
+          size: file.size,
+          url: cloudinaryUrl,
+        };
       }
+    } catch (error: any) {
+      console.warn(`Cloudinary upload failed, falling back to temp file storage: ${error.message || error}`);
     }
 
-    return {
-      filename,
-      originalName: file.originalname,
-      size: file.size,
-      url,
-    };
+    // Fallback: Save to OS temp directory (/tmp) which is writable on Serverless environments
+    try {
+      const tempDir = join(tmpdir(), 'premier_uploads');
+      if (!existsSync(tempDir)) {
+        mkdirSync(tempDir, { recursive: true });
+      }
+      const tempFilePath = join(tempDir, uniqueName);
+      await fsPromises.writeFile(tempFilePath, file.buffer);
+
+      const localUrl = `/api/uploads/${uniqueName}`;
+      return {
+        filename: uniqueName,
+        originalName: file.originalname,
+        size: file.size,
+        url: localUrl,
+      };
+    } catch (err: any) {
+      // Direct Data URI fallback if file write fails completely
+      const b64 = file.buffer.toString('base64');
+      const dataUri = `data:${file.mimetype};base64,${b64}`;
+      return {
+        filename: uniqueName,
+        originalName: file.originalname,
+        size: file.size,
+        url: dataUri,
+      };
+    }
   }
 
   @Get(':filename')
   serveFile(@Param('filename') filename: string, @Res() res: Response) {
-    const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
-    const filePath = join(process.cwd(), uploadDir, filename);
-
-    // Security: prevent path traversal
+    // Security check
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       throw new BadRequestException('Invalid filename');
     }
 
-    if (!existsSync(filePath)) {
-      throw new BadRequestException('File not found');
+    // 1. Check OS temp dir (/tmp/premier_uploads)
+    const tempFilePath = join(tmpdir(), 'premier_uploads', filename);
+    if (existsSync(tempFilePath)) {
+      return res.sendFile(tempFilePath);
     }
 
-    res.sendFile(filePath);
+    // 2. Check configured UPLOAD_DIR
+    const uploadDir = this.configService.get<string>('UPLOAD_DIR', './uploads');
+    const localFilePath = join(process.cwd(), uploadDir, filename);
+    if (existsSync(localFilePath)) {
+      return res.sendFile(localFilePath);
+    }
+
+    throw new BadRequestException('File not found');
   }
 }
 

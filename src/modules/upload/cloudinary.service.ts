@@ -41,4 +41,26 @@ export class CloudinaryService {
       throw error;
     }
   }
+
+  async uploadBuffer(buffer: Buffer, mimetype: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'premier_lms_uploads',
+          resource_type: 'auto',
+        },
+        (error, result) => {
+          if (error) {
+            this.logger.error(`Cloudinary stream upload failed: ${error.message || error}`);
+            return reject(error);
+          }
+          if (!result || !result.secure_url) {
+            return reject(new Error('Cloudinary returned no secure_url'));
+          }
+          resolve(result.secure_url);
+        },
+      );
+      uploadStream.end(buffer);
+    });
+  }
 }
