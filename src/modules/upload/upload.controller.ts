@@ -63,22 +63,24 @@ export class UploadController {
 
     const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
 
-    // Try Cloudinary stream upload first
-    try {
-      const cloudinaryUrl = await this.cloudinaryService.uploadBuffer(
-        file.buffer,
-        file.mimetype,
-      );
-      if (cloudinaryUrl) {
-        return {
-          filename: cloudinaryUrl,
-          originalName: file.originalname,
-          size: file.size,
-          url: cloudinaryUrl,
-        };
+    // Try Cloudinary stream upload if configured
+    if (this.cloudinaryService.isConfigured) {
+      try {
+        const cloudinaryUrl = await this.cloudinaryService.uploadBuffer(
+          file.buffer,
+          file.mimetype,
+        );
+        if (cloudinaryUrl) {
+          return {
+            filename: cloudinaryUrl,
+            originalName: file.originalname,
+            size: file.size,
+            url: cloudinaryUrl,
+          };
+        }
+      } catch (error: any) {
+        console.warn(`Cloudinary upload failed, falling back to temp file storage: ${error.message || error}`);
       }
-    } catch (error: any) {
-      console.warn(`Cloudinary upload failed, falling back to temp file storage: ${error.message || error}`);
     }
 
     // Fallback: Save to OS temp directory (/tmp) which is writable on Serverless environments

@@ -5,31 +5,38 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name);
+  public readonly isConfigured: boolean = false;
 
   constructor(private readonly configService: ConfigService) {
     const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
     const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
     const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
 
-    if (cloudName && apiKey && apiSecret) {
+    if (cloudName && apiKey && apiSecret && !cloudName.includes('your_')) {
       cloudinary.config({
         cloud_name: cloudName,
         api_key: apiKey,
         api_secret: apiSecret,
       });
+      this.isConfigured = true;
       this.logger.log('Cloudinary configured successfully via credentials.');
     } else {
       const cloudinaryUrl = this.configService.get<string>('CLOUDINARY_URL');
       if (cloudinaryUrl) {
         cloudinary.config();
+        this.isConfigured = true;
         this.logger.log('Cloudinary configured via CLOUDINARY_URL.');
       } else {
-        this.logger.warn('Cloudinary credentials or CLOUDINARY_URL not found in configuration!');
+        this.isConfigured = false;
+        this.logger.warn('Cloudinary disabled (credentials missing). Fast local storage active.');
       }
     }
   }
 
   async uploadFile(filePath: string): Promise<string> {
+    if (!this.isConfigured) {
+      throw new Error('Cloudinary not configured');
+    }
     try {
       const result = await cloudinary.uploader.upload(filePath, {
         folder: 'premier_lms_banners',
@@ -43,7 +50,11 @@ export class CloudinaryService {
   }
 
   async uploadBuffer(buffer: Buffer, mimetype: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+    if (!this.isConfigured) {
+      throw new Error('Cloudinary not configured');
+    }
+
+    const uploadPromise = new Promise<string>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'premier_lms_uploads',
@@ -62,5 +73,11 @@ export class CloudinaryService {
       );
       uploadStream.end(buffer);
     });
+
+    const timeoutPromise = new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error('Cloudinary upload timeout after 4s')), 4000)
+    );
+
+    return Promise.race([uploadPromise, timeoutPromise]);
   }
 }
