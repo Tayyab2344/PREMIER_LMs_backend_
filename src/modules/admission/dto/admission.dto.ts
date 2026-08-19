@@ -92,6 +92,42 @@ export class CreateAdmissionDto {
   @IsOptional()
   @IsString()
   batchId?: string;
+
+  @IsOptional()
+  @IsString()
+  applicationType?: string;
+
+  @IsOptional()
+  @IsString()
+  testReason?: string;
+
+  @IsOptional()
+  @IsString()
+  previousTraining?: string;
+
+  @IsOptional()
+  @IsString()
+  professionalExperience?: string;
+
+  @IsOptional()
+  @IsString()
+  assessmentMode?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredAssessmentDate?: string;
+
+  @IsOptional()
+  @IsString()
+  transactionId?: string;
+
+  @IsOptional()
+  @IsString()
+  referenceId?: string;
+
+  @IsOptional()
+  @IsString()
+  classMode?: string;
 }
 
 export class UpdateAdmissionStatusDto {

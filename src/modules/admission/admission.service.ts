@@ -57,12 +57,44 @@ export class AdmissionService {
       userId = existingUser.id;
     }
 
+    const {
+      applicationType,
+      testReason,
+      previousTraining,
+      professionalExperience,
+      assessmentMode,
+      preferredAssessmentDate,
+      transactionId,
+      referenceId,
+      classMode,
+      ...prismaPayload
+    } = dto;
+
+    const formattedRemarks = [
+      applicationType ? `[Type: ${applicationType}]` : null,
+      classMode ? `[Class Mode: ${classMode}]` : null,
+      testReason ? `[Test Reason: ${testReason}]` : null,
+      assessmentMode ? `[Assessment Mode: ${assessmentMode}]` : null,
+      preferredAssessmentDate ? `[Pref Date: ${preferredAssessmentDate}]` : null,
+      previousTraining ? `[Training: ${previousTraining}]` : null,
+      professionalExperience ? `[Exp: ${professionalExperience}]` : null,
+      referenceId ? `[Ref: ${referenceId}]` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const formattedPaymentMethod = dto.paymentMethod
+      ? `${dto.paymentMethod}${transactionId ? ` (Trx: ${transactionId})` : ''}`
+      : undefined;
+
     const newAdmission = await this.prisma.admission.create({
       data: {
-        ...dto,
+        ...prismaPayload,
         email: dto.email.toLowerCase(),
         dateOfBirth: new Date(dto.dateOfBirth),
         userId: userId || undefined,
+        paymentMethod: formattedPaymentMethod,
+        remarks: formattedRemarks || undefined,
       },
     });
 
