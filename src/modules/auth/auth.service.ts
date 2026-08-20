@@ -29,14 +29,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Generate JWT
+    // Generate JWT (30 days for students, 1 day for admin)
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
     };
 
-    const accessToken = this.jwtService.sign(payload);
+    const expiresIn = user.role === 'ADMIN' ? '1d' : '30d';
+    const accessToken = this.jwtService.sign(payload, { expiresIn: expiresIn as any });
 
     // Invalidate previous sessions (Single-Session enforcement)
     await this.prisma.deviceSession.updateMany({

@@ -49,30 +49,32 @@ export class SingleSessionGuard implements CanActivate {
       throw new UnauthorizedException('Account has been deactivated');
     }
 
-    if (dbUser.currentToken !== token) {
-      console.log('SingleSessionGuard: currentToken mismatch', dbUser.currentToken, token);
-      throw new UnauthorizedException(
-        'Session expired. You have been logged in from another device.',
-      );
-    }
-
     const activeSession = await this.prisma.deviceSession.findUnique({
       where: { token },
       select: { isActive: true },
     });
 
-    if (!activeSession || !activeSession.isActive) {
-      console.log('SingleSessionGuard: No activeSession');
+    if (activeSession) {
+      if (!activeSession.isActive) {
+        console.log('SingleSessionGuard: Inactive session');
+        throw new UnauthorizedException(
+          'Session expired. Please log in again.',
+        );
+      }
+    } else if (dbUser.currentToken !== token) {
+      console.log('SingleSessionGuard: currentToken mismatch', dbUser.currentToken, token);
       throw new UnauthorizedException(
-        'Session expired. You have been logged in from another device.',
+        'Session expired. Please log in again.',
       );
     }
 
-    // Touch last active time
-    await this.prisma.deviceSession.update({
-      where: { token },
-      data: { lastActiveAt: new Date() },
-    });
+    // Touch last active time if deviceSession exists
+    if (activeSession) {
+      await this.prisma.deviceSession.update({
+        where: { token },
+        data: { lastActiveAt: new Date() },
+      });
+    }
 
     return true;
   }
