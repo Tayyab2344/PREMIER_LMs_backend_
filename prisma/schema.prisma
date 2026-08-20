@@ -155,22 +155,27 @@ model User {
 }
 
 model Enrollment {
-  id        String   @id @default(uuid())
-  userId    String
-  courseId  String
-  batchName String?
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  batchId   String?
-  batch     Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  course    Course   @relation(fields: [courseId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  id                 String    @id @default(uuid())
+  userId             String
+  courseId           String
+  batchName          String?
+  registrationNo     String?   @unique
+  startDate          DateTime
+  endDate            DateTime
+  isActive           Boolean   @default(true)
+  accessType         String    @default("FULL")
+  isRevisionPaid     Boolean   @default(false)
+  revisionExpiryDate DateTime?
+  createdAt          DateTime  @default(now())
+  batchId            String?
+  batch              Batch?    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  course             Course    @relation(fields: [courseId], references: [id])
+  user               User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([courseId])
   @@index([batchId])
+  @@index([registrationNo])
 }
 
 model Class {

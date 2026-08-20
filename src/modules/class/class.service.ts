@@ -416,9 +416,18 @@ export class ClassService {
   }
 
   async findPastForStudent(userId: string, page?: number, limit?: number) {
-    const enrollments = await this.prisma.enrollment.findMany({
+    const now = new Date();
+    const rawEnrollments = await this.prisma.enrollment.findMany({
       where: { userId, isActive: true },
       include: { course: { select: { name: true } } },
+    });
+
+    const enrollments = rawEnrollments.filter((e: any) => {
+      if (e.accessType === 'REVISION') {
+        if (!e.isRevisionPaid) return false;
+        if (e.revisionExpiryDate && new Date(e.revisionExpiryDate) < now) return false;
+      }
+      return true;
     });
 
     if (enrollments.length === 0) {
@@ -426,6 +435,12 @@ export class ClassService {
     }
 
     const conditions = enrollments.map((e: any) => {
+      if (e.batchId) {
+        return {
+          courseName: e.course.name,
+          batchId: e.batchId,
+        };
+      }
       if (e.batchName) {
         return {
           courseName: e.course.name,

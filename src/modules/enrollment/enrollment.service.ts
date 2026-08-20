@@ -24,6 +24,7 @@ export class EnrollmentService {
     const where: any = {};
     if (search) {
       where.OR = [
+        { registrationNo: { contains: search, mode: 'insensitive' } },
         { user: { name: { contains: search, mode: 'insensitive' } } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
         { course: { name: { contains: search, mode: 'insensitive' } } },
@@ -37,6 +38,9 @@ export class EnrollmentService {
       },
       course: {
         select: { id: true, name: true },
+      },
+      batch: {
+        select: { id: true, name: true, isActive: true },
       },
     };
 
@@ -90,6 +94,26 @@ export class EnrollmentService {
       data: {
         batchName,
         batchId: batch ? batch.id : null,
+      },
+    });
+  }
+
+  async grantRevisionAccess(id: string, durationDays: number = 60) {
+    const enrollment = await this.prisma.enrollment.findUnique({ where: { id } });
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + Math.max(1, durationDays));
+
+    return this.prisma.enrollment.update({
+      where: { id },
+      data: {
+        accessType: 'REVISION',
+        isRevisionPaid: true,
+        revisionExpiryDate: expiryDate,
+        isActive: true,
       },
     });
   }

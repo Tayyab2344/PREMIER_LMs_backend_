@@ -323,12 +323,21 @@ export class AdmissionService {
       }
 
       for (const course of courses) {
+        const registrationNo = await this.generateRegistrationNo(
+          tx,
+          admission.batchId,
+          course.name,
+          course.id,
+          enrollmentStartDate,
+        );
+
         await tx.enrollment.create({
           data: {
             userId: user.id,
             courseId: course.id,
             batchId: admission.batchId || undefined,
             batchName: batchName || undefined,
+            registrationNo,
             startDate: enrollmentStartDate,
             endDate: enrollmentEndDate,
           },
@@ -367,6 +376,46 @@ export class AdmissionService {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return password;
+  }
+
+  private async generateRegistrationNo(
+    tx: Prisma.TransactionClient,
+    batchId: string | null | undefined,
+    courseName: string,
+    courseId: string,
+    enrollmentStartDate: Date,
+  ): Promise<string> {
+    let yearStr = new Date(enrollmentStartDate).getFullYear().toString().slice(-2);
+    let batchNum = '01';
+
+    if (batchId) {
+      const batch = await tx.batch.findUnique({ where: { id: batchId } });
+      if (batch) {
+        yearStr = new Date(batch.startDate).getFullYear().toString().slice(-2);
+        const match = batch.name.match(/\d+/);
+        if (match) {
+          batchNum = match[0].padStart(2, '0');
+        }
+      }
+    }
+
+    const batchPrefix = `B${yearStr}-${batchNum}`;
+
+    const words = courseName.trim().split(/\s+/);
+    let courseCode = words.map((w) => w[0]).join('').toUpperCase().slice(0, 3);
+    if (!courseCode || courseCode.length < 2) {
+      courseCode = courseName.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'CRS';
+    }
+
+    const existingCount = await tx.enrollment.count({
+      where: {
+        courseId,
+        ...(batchId ? { batchId } : {}),
+      },
+    });
+
+    const sequence = String(existingCount + 1).padStart(3, '0');
+    return `${batchPrefix}-${courseCode}-${sequence}`;
   }
 
   async getStats() {

@@ -48,4 +48,15 @@ export class EnrollmentController {
   updateBatch(@Param('id') id: string, @Body('batchName') batchName: string) {
     return this.enrollmentService.updateBatch(id, batchName);
   }
+
+  // Admin — grant revision access for an enrollment
+  @Patch(':id/grant-revision')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  grantRevision(
+    @Param('id') id: string,
+    @Body('durationDays') durationDays?: number,
+  ) {
+    return this.enrollmentService.grantRevisionAccess(id, durationDays || 60);
+  }
 }
