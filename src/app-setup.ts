@@ -7,17 +7,43 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 export function configureApp(app: INestApplication) {
   const configService = app.get(ConfigService);
 
+  // Mandatory Security Environment Validation
+  const jwtSecret = configService.get<string>('JWT_SECRET');
+  if (!jwtSecret || jwtSecret.trim().length < 32) {
+    throw new Error(
+      '🚨 FATAL SECURITY ERROR: JWT_SECRET environment variable is missing, empty, or shorter than 32 characters. Server startup halted to protect auth tokens.'
+    );
+  }
+
   // Security
   app.use(helmet());
   
-  const isDev = configService.get<string>('NODE_ENV', 'development') === 'development';
-  const corsOrigins = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000')
+  // CORS Configuration: Explicit whitelist
+  const configuredOrigins = (configService.get<string>('ALLOWED_ORIGINS') || configService.get<string>('CORS_ORIGIN') || '')
     .split(',')
-    .map(o => o.trim());
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://premier-lms-frontend.vercel.app',
+  ];
+
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...configuredOrigins]));
 
   app.enableCors({
-    origin: isDev ? true : corsOrigins,
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin (e.g. mobile apps, server-to-server curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked: Origin ${origin} is not allowed by policy.`), false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-zm-signature', 'x-zm-request-timestamp'],
   });
 
   // Global validation

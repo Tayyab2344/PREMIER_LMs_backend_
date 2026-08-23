@@ -14,6 +14,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SingleSessionGuard } from '../../common/guards/single-session.guard';
 
+import { UpdateEnrollmentBatchDto, GrantRevisionDto } from './dto/enrollment.dto';
+
 @Controller('enrollments')
 @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
 export class EnrollmentController {
@@ -45,8 +47,8 @@ export class EnrollmentController {
   @Patch(':id/batch')
   @UseGuards(RolesGuard)
   @Roles('admin')
-  updateBatch(@Param('id') id: string, @Body('batchName') batchName: string) {
-    return this.enrollmentService.updateBatch(id, batchName);
+  updateBatch(@Param('id') id: string, @Body() dto: UpdateEnrollmentBatchDto) {
+    return this.enrollmentService.updateBatch(id, dto.batchName);
   }
 
   // Admin — grant revision access for an enrollment
@@ -55,8 +57,8 @@ export class EnrollmentController {
   @Roles('admin')
   grantRevision(
     @Param('id') id: string,
-    @Body('durationDays') durationDays?: number,
+    @Body() dto: GrantRevisionDto,
   ) {
-    return this.enrollmentService.grantRevisionAccess(id, durationDays || 60);
+    return this.enrollmentService.grantRevisionAccess(id, dto.durationDays || 60);
   }
 }

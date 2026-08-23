@@ -12,12 +12,18 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'default-secret'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRATION', '7d') as any,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret || secret.trim().length < 32) {
+          throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing, empty, or shorter than 32 characters.');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: configService.get<string>('JWT_EXPIRATION', '7d') as any,
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

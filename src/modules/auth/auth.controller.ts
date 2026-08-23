@@ -11,7 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
+import { LoginDto, RegisterDto, ChangePasswordDto } from './dto/login.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SingleSessionGuard } from '../../common/guards/single-session.guard';
 
@@ -31,17 +31,17 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 registrations per minute
-  async register(
-    @Body('name') name: string,
-    @Body('email') email: string,
-    @Body('password') password: string,
-  ) {
-    return this.authService.register(name, email, password);
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(
+      registerDto.name,
+      registerDto.email,
+      registerDto.password,
+    );
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
   async logout(@CurrentUser('sub') userId: string, @Req() req: any) {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace('Bearer ', '');
@@ -56,12 +56,16 @@ export class AuthController {
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60000 } }) // 5 attempts per minute
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
   async changePassword(
     @CurrentUser('sub') userId: string,
-    @Body('currentPassword') currentPassword: string,
-    @Body('newPassword') newPassword: string,
+    @Body() changePasswordDto: ChangePasswordDto,
   ) {
-    return this.authService.changePassword(userId, currentPassword, newPassword);
+    return this.authService.changePassword(
+      userId,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

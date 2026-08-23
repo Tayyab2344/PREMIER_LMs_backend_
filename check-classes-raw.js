@@ -1,8 +1,14 @@
 const { Client } = require('pg');
 
 async function run() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error('DATABASE_URL environment variable is not set.');
+    process.exit(1);
+  }
+
   const client = new Client({
-    connectionString: "postgresql://neondb_owner:npg_gTvhOPyL1zW6@ep-gentle-sea-ad1e1wy5-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+    connectionString,
   });
 
   await client.connect();
@@ -15,3 +21,4 @@ async function run() {
 }
 
 run().catch(console.error);
+

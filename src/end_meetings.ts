@@ -13,7 +13,11 @@ async function main() {
   }
 
   // List active meetings for the teacher
-  const teacherEmail = process.env.ZOOM_TEACHER_EMAIL || 'hashirmashwani8@gmail.com';
+  const teacherEmail = process.env.ZOOM_TEACHER_EMAIL;
+  if (!teacherEmail) {
+    console.error('ZOOM_TEACHER_EMAIL environment variable is required.');
+    return;
+  }
   console.log(`Checking meetings for ${teacherEmail}...`);
 
   const response = await fetch(
@@ -40,11 +44,6 @@ async function main() {
     console.log(`Ending meeting ${meeting.id} (${meeting.topic})...`);
     await zoomService.endZoomMeeting(String(meeting.id));
   }
-
-  // Also explicitly try ending yesterday's meeting just in case
-  const yesterdayMeetingId = '87866793251';
-  console.log(`Explicitly ending yesterday's meeting ${yesterdayMeetingId}...`);
-  await zoomService.endZoomMeeting(yesterdayMeetingId);
 
   await app.close();
 }

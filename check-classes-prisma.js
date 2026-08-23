@@ -1,11 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: "postgresql://neondb_owner:npg_gTvhOPyL1zW6@ep-gentle-sea-ad1e1wy5-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&connection_limit=1"
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 async function run() {
   console.log('Querying latest classes...');

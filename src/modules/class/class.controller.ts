@@ -14,7 +14,13 @@ import {
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ClassService } from './class.service';
-import { CreateClassDto, UpdateClassDto, CreateRecordedLectureDto, UpdateRecordedLectureDto } from './dto/class.dto';
+import {
+  CreateClassDto,
+  UpdateClassDto,
+  CreateRecordedLectureDto,
+  UpdateRecordedLectureDto,
+  UpdatePlaybackProgressDto,
+} from './dto/class.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -149,11 +155,20 @@ export class ClassController {
     return this.classService.joinClass(id, userId, userRole);
   }
 
-  // Admin — get single class
+  // Get single class (Redacts zoomPasscode for students)
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
-  findById(@Param('id') id: string) {
-    return this.classService.findById(id);
+  async findById(
+    @Param('id') id: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    const cls = await this.classService.findById(id);
+    const isPrivileged = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'teacher';
+    if (!isPrivileged) {
+      const { zoomPasscode, ...safeClass } = cls;
+      return safeClass;
+    }
+    return cls;
   }
 
   // Admin — update class
@@ -235,7 +250,7 @@ export class ClassController {
   @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
   updatePlaybackProgress(
     @CurrentUser('sub') userId: string,
-    @Body() body: { recordedLectureId: string; durationWatched: number; lastPosition: number },
+    @Body() body: UpdatePlaybackProgressDto,
   ) {
     return this.recordingService.updatePlaybackProgress({
       userId,

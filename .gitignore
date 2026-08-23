@@ -46,4 +46,10 @@ Thumbs.db
 /uploads/
 *.tsbuildinfo
 
+# Local diagnostic and test scripts
+check-*.js
+test-*.js
+query_hierarchy.js
+check-tayyab.js
+
 .vercel

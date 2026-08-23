@@ -15,9 +15,33 @@ import { RecordingService } from './recording.service';
 import { AuditService } from './audit.service';
 import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
 
+function getGatewayAllowedOrigins(): string[] {
+  const envOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const defaults = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://premier-lms-frontend.vercel.app',
+  ];
+
+  return Array.from(new Set([...defaults, ...envOrigins]));
+}
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (origin: string, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin header (native mobile clients, socket background tasks)
+      if (!origin) return callback(null, true);
+      const allowed = getGatewayAllowedOrigins();
+      if (allowed.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`WebSocket CORS blocked: Origin ${origin} not allowed.`), false);
+    },
+    credentials: true,
   },
 })
 export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnect {

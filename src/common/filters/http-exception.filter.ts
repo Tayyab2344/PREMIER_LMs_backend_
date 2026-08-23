@@ -21,13 +21,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let errors: any = undefined;
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object') {
+      } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const resp = exceptionResponse as any;
         message = resp.message || message;
         errors = resp.errors;
@@ -39,8 +41,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
       this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      message = isProduction
+        ? 'An unexpected error occurred. Please try again later.'
+        : exception.message;
+    } else {
+      this.logger.error('Unknown exception captured in filter', exception);
+      message = isProduction ? 'Internal server error' : String(exception);
     }
 
     response.status(status).json({

@@ -17,10 +17,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'default-secret'),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret || secret.trim().length < 32) {
+          throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing or under 32 chars.');
+        }
+        return { secret };
+      },
     }),
   ],
   controllers: [ClassController],

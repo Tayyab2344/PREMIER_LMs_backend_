@@ -48,7 +48,8 @@ export class BatchController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
+  @UseGuards(AuthGuard('jwt'), SingleSessionGuard, RolesGuard)
+  @Roles('admin')
   findOne(@Param('id') id: string) {
     return this.batchService.findById(id);
   }

@@ -22,7 +22,6 @@ export class SingleSessionGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      console.log('SingleSessionGuard: No user found');
       throw new UnauthorizedException('Authentication required');
     }
 
@@ -41,7 +40,6 @@ export class SingleSessionGuard implements CanActivate {
     });
 
     if (!dbUser) {
-      console.log('SingleSessionGuard: dbUser not found', user.sub);
       throw new UnauthorizedException('User not found');
     }
 
@@ -56,13 +54,11 @@ export class SingleSessionGuard implements CanActivate {
 
     if (activeSession) {
       if (!activeSession.isActive) {
-        console.log('SingleSessionGuard: Inactive session');
         throw new UnauthorizedException(
           'Session expired. Please log in again.',
         );
       }
     } else if (dbUser.currentToken !== token) {
-      console.log('SingleSessionGuard: currentToken mismatch', dbUser.currentToken, token);
       throw new UnauthorizedException(
         'Session expired. Please log in again.',
       );

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 interface TokenData {
   classId: string;
@@ -23,7 +24,7 @@ export class RecordingTokenService {
   }
 
   createToken(classId: string, lectureId: string): string {
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const token = crypto.randomBytes(32).toString('hex');
     // Session token valid for 2 hours — survives browser refreshes
     const expiresAt = Date.now() + 2 * 60 * 60 * 1000;
     this.tokens.set(token, { classId, lectureId, expiresAt });

@@ -144,3 +144,18 @@ export class UpdateRecordedLectureDto {
   @IsBoolean()
   recordingLive?: boolean;
 }
+
+export class UpdatePlaybackProgressDto {
+  @IsString()
+  @IsNotEmpty()
+  recordedLectureId: string;
+
+  @IsInt()
+  @Min(0)
+  durationWatched: number;
+
+  @IsInt()
+  @Min(0)
+  lastPosition: number;
+}
+

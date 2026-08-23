@@ -2,8 +2,13 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const crypto = require('crypto');
 
-const sdkKey = process.env.ZOOM_SDK_KEY || "h9WL1pqUTJo1UCkriPmIw";
-const sdkSecret = process.env.ZOOM_SDK_SECRET || "uWULfx-YQuurORgUo7c4Ww";
+const sdkKey = process.env.ZOOM_SDK_KEY;
+const sdkSecret = process.env.ZOOM_SDK_SECRET;
+
+if (!sdkKey || !sdkSecret) {
+  console.error('ZOOM_SDK_KEY and ZOOM_SDK_SECRET environment variables are required.');
+  process.exit(1);
+}
 
 const signJWT = (header, payload, secret) => {
     const base64UrlEncode = (obj) => {

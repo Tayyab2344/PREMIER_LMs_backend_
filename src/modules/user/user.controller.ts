@@ -14,6 +14,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SingleSessionGuard } from '../../common/guards/single-session.guard';
 
+import { CreateStudentDto } from './dto/user.dto';
+
 @Controller('users')
 @UseGuards(AuthGuard('jwt'), SingleSessionGuard, RolesGuard)
 @Roles('admin')
@@ -51,13 +53,7 @@ export class UserController {
   }
 
   @Post('student')
-  createStudent(
-    @Body('name') name: string,
-    @Body('email') email: string,
-    @Body('password') password?: string,
-    @Body('courseId') courseId?: string,
-    @Body('batchId') batchId?: string,
-  ) {
-    return this.userService.createStudent({ name, email, password, courseId, batchId });
+  createStudent(@Body() dto: CreateStudentDto) {
+    return this.userService.createStudent(dto);
   }
 }

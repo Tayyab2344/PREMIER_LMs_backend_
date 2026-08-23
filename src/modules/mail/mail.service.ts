@@ -16,9 +16,9 @@ export class MailService {
       host,
       port,
       secure: port === 465,
-      auth: user && pass ? { user, pass } : undefined,
       tls: {
-        rejectUnauthorized: false,
+        // Enforce valid SSL/TLS certificates in production to prevent MitM credential interception
+        rejectUnauthorized: process.env.NODE_ENV === 'production' || process.env.SMTP_STRICT_TLS !== 'false',
       },
       connectionTimeout: 10000,
       socketTimeout: 10000,

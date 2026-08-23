@@ -74,15 +74,6 @@ export class ZoomService {
       tokenExp: exp,
     };
 
-    // [DEBUGGING ONLY] Log the exact requested values
-    console.log('[DEBUG-BACKEND] --- ZOOM SIGNATURE GENERATION ---');
-    console.log(`[DEBUG-BACKEND] mn: ${payload.mn} (type: ${typeof payload.mn})`);
-    console.log(`[DEBUG-BACKEND] role: ${payload.role} (type: ${typeof payload.role})`);
-    console.log(`[DEBUG-BACKEND] iat: ${payload.iat} (type: ${typeof payload.iat})`);
-    console.log(`[DEBUG-BACKEND] exp: ${payload.exp} (type: ${typeof payload.exp})`);
-    console.log(`[DEBUG-BACKEND] appKey length: ${payload.appKey?.length}, sdkKey length: ${payload.sdkKey?.length}`);
-    console.log('[DEBUG-BACKEND] -----------------------------------');
-
     return this.signJWT(header, payload, this.sdkSecret);
   }
 
@@ -264,7 +255,7 @@ export class ZoomService {
     }
 
     try {
-      const passcode = Math.random().toString(36).substring(2, 10);
+      const passcode = crypto.randomBytes(6).toString('base64url').slice(0, 8);
 
       this.logger.log(`📞 Calling Zoom API: POST /v2/users/${this.teacherEmail}/meetings`);
       this.logger.log(`   Topic: "${params.topic}", Start: ${params.startTime.toISOString()}, Duration: ${params.durationMinutes}min`);
