@@ -25,6 +25,8 @@ function getGatewayAllowedOrigins(): string[] {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://premier-lms-frontend.vercel.app',
+    'https://www.premiertaxschool.com',
+    'https://premiertaxschool.com',
   ];
 
   return Array.from(new Set([...defaults, ...envOrigins]));
@@ -36,10 +38,12 @@ function getGatewayAllowedOrigins(): string[] {
       // Allow requests with no origin header (native mobile clients, socket background tasks)
       if (!origin) return callback(null, true);
       const allowed = getGatewayAllowedOrigins();
-      if (allowed.includes(origin)) {
+      const cleanOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowed.some((o) => o.replace(/\/$/, '') === cleanOrigin) || cleanOrigin.endsWith('.vercel.app');
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(new Error(`WebSocket CORS blocked: Origin ${origin} not allowed.`), false);
+      return callback(null, false);
     },
     credentials: true,
   },

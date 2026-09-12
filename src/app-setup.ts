@@ -28,6 +28,8 @@ export function configureApp(app: INestApplication) {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://premier-lms-frontend.vercel.app',
+    'https://www.premiertaxschool.com',
+    'https://premiertaxschool.com',
   ];
 
   const allowedOrigins = Array.from(new Set([...defaultOrigins, ...configuredOrigins]));
@@ -36,10 +38,15 @@ export function configureApp(app: INestApplication) {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (e.g. mobile apps, server-to-server curl)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      
+      const cleanOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(o => o.replace(/\/$/, '') === cleanOrigin) ||
+                        cleanOrigin.endsWith('.vercel.app');
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS blocked: Origin ${origin} is not allowed by policy.`), false);
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -16,8 +16,18 @@ let isBootstrapped = false;
 
 export default async (req: any, res: any) => {
   if (!isBootstrapped) {
-    await bootstrap();
-    isBootstrapped = true;
+    try {
+      await bootstrap();
+      isBootstrapped = true;
+    } catch (err: any) {
+      console.error('🚨 Vercel Serverless Bootstrap Error:', err);
+      return res.status(500).json({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err?.message || 'Server initialization failed.',
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
   server(req, res);
 };
