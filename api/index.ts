@@ -2,32 +2,42 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app-setup';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
+import express, { Express } from 'express';
 
-const server = express();
+let cachedServer: Express | null = null;
+let bootstrapPromise: Promise<Express> | null = null;
 
-export const bootstrap = async () => {
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+async function bootstrapServer(): Promise<Express> {
+  const expressApp = express();
+  const adapter = new ExpressAdapter(expressApp);
+  const app = await NestFactory.create(AppModule, adapter, {
+    logger: ['error', 'warn', 'log'],
+  });
+
   configureApp(app);
   await app.init();
-};
-
-let isBootstrapped = false;
+  return expressApp;
+}
 
 export default async (req: any, res: any) => {
-  if (!isBootstrapped) {
-    try {
-      await bootstrap();
-      isBootstrapped = true;
-    } catch (err: any) {
-      console.error('🚨 Vercel Serverless Bootstrap Error:', err);
-      return res.status(500).json({
-        statusCode: 500,
-        error: 'Internal Server Error',
-        message: err?.message || 'Server initialization failed.',
-        timestamp: new Date().toISOString(),
-      });
+  try {
+    if (!cachedServer) {
+      if (!bootstrapPromise) {
+        bootstrapPromise = bootstrapServer().catch((err) => {
+          bootstrapPromise = null;
+          throw err;
+        });
+      }
+      cachedServer = await bootstrapPromise;
     }
+    return cachedServer(req, res);
+  } catch (err: any) {
+    console.error('🚨 Vercel Serverless Bootstrap Error:', err);
+    return res.status(500).json({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: err?.message || 'Server initialization failed.',
+      timestamp: new Date().toISOString(),
+    });
   }
-  server(req, res);
 };
