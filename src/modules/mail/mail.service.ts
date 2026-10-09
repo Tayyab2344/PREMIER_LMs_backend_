@@ -26,7 +26,7 @@ export class MailService {
 
     // Verify SMTP connection on startup
     if (user && pass) {
-      this.transporter.verify((error) => {
+      this.transporter.verify((error: Error | null) => {
         if (error) {
           this.logger.error(
             `SMTP server connection verification failed for user "${user}". Please check SMTP configurations:`,
