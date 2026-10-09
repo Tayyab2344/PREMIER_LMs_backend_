@@ -8,7 +8,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = process.env.PORT || configService.get<number>('API_PORT', 3001);
-  const host = configService.get<string>('API_HOST', '127.0.0.1');
+  const host = configService.get<string>('API_HOST', '0.0.0.0');
 
   configureApp(app);
 

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Premier LMS – NestJS Backend API",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "vercel-build": "prisma generate",
     "dev": "nest start --watch",
     "start": "nest start",
@@ -19,6 +19,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@nestjs/cli": "^11.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -39,13 +40,14 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.22.0",
+    "prisma": "^6.0.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
     "socket.io": "^4.8.3",
+    "typescript": "^5.8.0",
     "uuid": "^11.0.0"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
     "@types/bcrypt": "^5.0.2",
@@ -55,10 +57,8 @@
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
-    "prisma": "^6.0.0",
     "ts-loader": "^9.5.0",
     "ts-node": "^10.9.0",
-    "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.8.0"
+    "tsconfig-paths": "^4.2.0"
   }
 }

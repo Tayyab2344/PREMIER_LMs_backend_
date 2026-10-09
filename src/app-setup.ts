@@ -41,7 +41,7 @@ export function configureApp(app: INestApplication) {
       
       const cleanOrigin = origin.replace(/\/$/, '');
       const isAllowed = allowedOrigins.some(o => o.replace(/\/$/, '') === cleanOrigin) ||
-                        cleanOrigin.endsWith('.vercel.app');
+                        cleanOrigin === 'https://premier-lms-frontend.vercel.app';
 
       if (isAllowed) {
         return callback(null, true);

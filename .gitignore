@@ -6,6 +6,8 @@
 
 # Environment variables
 .env
+.env.*
+*.backup
 .env.development
 .env.test
 .env.production

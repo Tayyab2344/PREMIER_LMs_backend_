@@ -39,7 +39,7 @@ function getGatewayAllowedOrigins(): string[] {
       if (!origin) return callback(null, true);
       const allowed = getGatewayAllowedOrigins();
       const cleanOrigin = origin.replace(/\/$/, '');
-      const isAllowed = allowed.some((o) => o.replace(/\/$/, '') === cleanOrigin) || cleanOrigin.endsWith('.vercel.app');
+      const isAllowed = allowed.some((o) => o.replace(/\/$/, '') === cleanOrigin) || cleanOrigin === 'https://premier-lms-frontend.vercel.app';
       if (isAllowed) {
         return callback(null, true);
       }
@@ -128,12 +128,14 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
       if (payload.exp) {
         const expiresInMs = (payload.exp * 1000) - Date.now();
         if (expiresInMs > 0) {
-          setTimeout(() => {
+          // Store timer ref so we can clear it on disconnect (prevents memory leak)
+          const expiryTimer = setTimeout(() => {
             if (client.connected) {
               client.emit('session-expired', { message: 'Your session has expired. Please log in again.' });
               client.disconnect(true);
             }
-          }, expiresInMs);
+          }, Math.min(expiresInMs, 86_400_000)); // Cap at 24h to avoid huge timers
+          client.data._expiryTimer = expiryTimer;
         }
       }
 
@@ -149,6 +151,11 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
    * Handle socket disconnection. Cleans up attendance states.
    */
   async handleDisconnect(client: Socket) {
+    // Clear JWT expiry timer to prevent memory leak
+    if (client.data._expiryTimer) {
+      clearTimeout(client.data._expiryTimer);
+    }
+
     const user = client.data.user;
     if (!user) return;
 
@@ -191,17 +198,28 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Role-Based Access Validation
     if (user.role === 'student') {
       console.log(`[LiveClassGateway] Student ${user.email} joining class ${classId}`);
-      // 1. Verify student enrollment
-      const enrollment = await this.prisma.enrollment.findFirst({
-        where: { userId: user.id, courseId: cls.batchId ? undefined : undefined }, // general batch resolution
-      });
-      // Allow fallback if enrollment matching exists for this course
+
+      // 1. Resolve the course ID from the class's batch
+      let courseId: string | null = null;
+      if (cls.batchId) {
+        const batchWithCourses = await this.prisma.batch.findUnique({
+          where: { id: cls.batchId },
+          include: { courses: { select: { id: true } } },
+        });
+        courseId = batchWithCourses?.courses?.[0]?.id ?? null;
+      }
+
+      // 2. Verify student enrollment against the actual course
       const courseMatch = await this.prisma.enrollment.findFirst({
-        where: { userId: user.id, isActive: true },
+        where: {
+          userId: user.id,
+          isActive: true,
+          ...(courseId ? { courseId } : {}),
+        },
       });
 
       if (!courseMatch) {
-        console.log(`[LiveClassGateway] Student ${user.email} missing courseMatch`);
+        console.log(`[LiveClassGateway] Student ${user.email} not enrolled in course ${courseId ?? 'unknown'} for class ${classId}`);
         client.emit('error', { message: 'You are not enrolled in the course for this live class.' });
         client.disconnect(true);
         return;
@@ -435,9 +453,7 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
       userId: studentId,
     });
 
-    // Broadcast kicked event specifically to the student
-    // We send it to the class room but with a target userId, or better yet, if we had their specific socket ID.
-    // For now, emit to room, frontend will check userId
+    // Broadcast kicked event to the room
     this.server.to(`class_${classId}`).emit('kicked', { userId: studentId });
 
     // Inform the host
@@ -445,6 +461,15 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
       action: 'remove',
       userId: studentId,
     });
+
+    // Server-side enforcement: find and disconnect the student's actual socket
+    const sockets = await this.server.fetchSockets();
+    for (const s of sockets) {
+      if (s.data?.user?.id === studentId && s.data?.classId === classId) {
+        s.emit('kicked', { userId: studentId, message: 'You have been removed from this classroom.' });
+        s.disconnect(true);
+      }
+    }
 
     await this.auditService.log({
       userId: user.id,
@@ -488,6 +513,15 @@ export class LiveClassGateway implements OnGatewayConnection, OnGatewayDisconnec
       action: 'remove',
       userId: studentId,
     });
+
+    // Server-side enforcement: find and disconnect the banned student's actual socket
+    const sockets = await this.server.fetchSockets();
+    for (const s of sockets) {
+      if (s.data?.user?.id === studentId) {
+        s.emit('banned', { userId: studentId, message: 'You have been banned from this classroom.' });
+        s.disconnect(true);
+      }
+    }
 
     await this.auditService.log({
       userId: user.id,
