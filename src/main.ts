@@ -14,6 +14,19 @@ async function bootstrap() {
 
   await app.listen(port, host);
   console.log(`🚀 Premier LMS API running on http://${host}:${port}`);
+
+  // Keep Render container alive (Render free-tier sleeps after 15m idle)
+  const renderExternalUrl = process.env.RENDER_EXTERNAL_URL || 'https://premier-lms-backend-1.onrender.com';
+  if (process.env.NODE_ENV === 'production' && (process.env.RENDER || process.env.RENDER_EXTERNAL_URL)) {
+    console.log(`[KeepAlive] Automated pinger active for ${renderExternalUrl}`);
+    setInterval(async () => {
+      try {
+        await fetch(`${renderExternalUrl}/`);
+      } catch (_) {
+        // Silently ignore ping failures
+      }
+    }, 10 * 60 * 1000); // Every 10 minutes
+  }
 }
 
 bootstrap();
