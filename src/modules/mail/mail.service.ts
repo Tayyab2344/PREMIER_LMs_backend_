@@ -8,21 +8,21 @@ export class MailService {
 
   constructor() {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.SMTP_PORT || '465', 10);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    const user = process.env.SMTP_USER || 'recyconnect5@gmail.com';
+    const pass = process.env.SMTP_PASS || 'ppybbkuoryorlamd';
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
       secure: port === 465,
-      auth: user && pass ? { user, pass } : undefined,
+      auth: { user, pass },
       tls: {
-        // Enforce valid SSL/TLS certificates in production to prevent MitM credential interception
-        rejectUnauthorized: process.env.NODE_ENV === 'production' || process.env.SMTP_STRICT_TLS !== 'false',
+        rejectUnauthorized: false,
       },
-      connectionTimeout: 10000,
-      socketTimeout: 10000,
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
     // Verify SMTP connection on startup
@@ -30,11 +30,11 @@ export class MailService {
       this.transporter.verify((error: Error | null) => {
         if (error) {
           this.logger.error(
-            `SMTP server connection verification failed for user "${user}". Please check SMTP configurations:`,
+            `SMTP server connection verification failed for user "${user}" on ${host}:${port}:`,
             error,
           );
         } else {
-          this.logger.log('SMTP connection successfully verified. Ready to send emails.');
+          this.logger.log(`SMTP connection successfully verified on ${host}:${port}. Ready to send emails.`);
         }
       });
     } else {
