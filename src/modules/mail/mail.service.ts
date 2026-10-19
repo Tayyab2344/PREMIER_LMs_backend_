@@ -60,12 +60,12 @@ export class MailService {
       .trim();
   }
 
-  private getAppUrl(): string {
+  public getAppUrl(): string {
     const rawUrl = process.env.APP_URL;
     if (rawUrl && !rawUrl.includes('localhost') && !rawUrl.includes('127.0.0.1')) {
       return rawUrl.replace(/\/$/, '');
     }
-    return 'https://premier-lms-frontend.vercel.app';
+    return 'https://www.premiertaxschool.com';
   }
 
   private async sendMail(to: string, subject: string, htmlContent: string) {
@@ -75,7 +75,7 @@ export class MailService {
     }
 
     const senderEmail = process.env.SMTP_USER || 'recyconnect5@gmail.com';
-    const from = process.env.SMTP_FROM || `"Premier Academy" <${senderEmail}>`;
+    const from = process.env.SMTP_FROM || `Premier Academy <${senderEmail}>`;
     const plainText = this.stripHtml(htmlContent);
 
     try {
@@ -87,11 +87,7 @@ export class MailService {
         text: plainText,
         html: htmlContent,
         headers: {
-          'Auto-Submitted': 'auto-generated',
-          'X-Auto-Response-Suppress': 'OOF, AutoReply, All',
-          'List-Unsubscribe': `<mailto:${senderEmail}?subject=unsubscribe>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          'Feedback-ID': 'transactional:premier-lms:gmail',
+          'X-Entity-Ref-ID': `lms-${Date.now()}`,
         },
       });
       this.logger.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
@@ -238,10 +234,6 @@ export class MailService {
         </style>
       </head>
       <body>
-        <!-- Hidden Preheader Text for Inbox Preview -->
-        <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
-          ${title} - Premier Academy
-        </div>
         <div class="email-container">
           <div class="email-header">
             <h1>Premier Academy</h1>
@@ -279,11 +271,11 @@ export class MailService {
       `
     );
 
-    return this.sendMail(to, 'Admission Application Received - Premier Academy', html);
+    return this.sendMail(to, 'Premier Academy: Admission Application Received', html);
   }
 
   async sendAdmissionApproved(to: string, studentName: string, loginPassword?: string) {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = this.getAppUrl();
     
     let credentialsHtml = '';
     if (loginPassword) {
@@ -324,7 +316,7 @@ export class MailService {
       `
     );
 
-    return this.sendMail(to, 'Welcome to Premier Academy! - Admission Approved', html);
+    return this.sendMail(to, 'Premier Academy: Admission Approved & Portal Login Details', html);
   }
 
   async sendAdmissionRejected(to: string, studentName: string, remarks?: string) {
@@ -351,7 +343,7 @@ export class MailService {
       `
     );
 
-    return this.sendMail(to, 'Admission Application Status - Premier Academy', html);
+    return this.sendMail(to, 'Premier Academy: Admission Application Status Update', html);
   }
 
   async sendClassScheduled(
@@ -412,6 +404,6 @@ export class MailService {
       `
     );
 
-    return this.sendMail(to, `New Live Class: ${classTitle} - ${courseName}`, html);
+    return this.sendMail(to, `Premier Academy: Live Class Scheduled - ${classTitle}`, html);
   }
 }

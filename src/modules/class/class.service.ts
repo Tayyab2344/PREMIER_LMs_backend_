@@ -121,7 +121,7 @@ export class ClassService {
         },
       });
 
-      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const appUrl = this.mailService.getAppUrl();
       const jitsiLink = `${appUrl}/dashboard/classes/${newClass.id}`;
 
       for (const enrollment of enrollments) {

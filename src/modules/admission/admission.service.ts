@@ -272,22 +272,25 @@ export class AdmissionService {
         });
       }
 
-      if (user) {
-        // Existing user — ensure role is student and active
-        if (user.role !== 'student') {
-          await tx.user.update({
-            where: { id: user.id },
-            data: { role: 'student', isActive: true },
-          });
-        }
-      } else {
-        // New user — generate password and create account
-        rawPassword = this.generatePassword();
-        const hashedPassword = await bcrypt.hash(rawPassword, 12);
+      // Always generate a fresh temporary password for the student
+      rawPassword = this.generatePassword();
+      const hashedPassword = await bcrypt.hash(rawPassword, 12);
 
+      if (user) {
+        // Existing user — ensure role is student, active, and update password
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            role: 'student',
+            isActive: true,
+            password: hashedPassword,
+          },
+        });
+      } else {
+        // New user — create account
         user = await tx.user.create({
           data: {
-            email: admission.email,
+            email: admission.email.toLowerCase(),
             name: admission.fullName,
             role: 'student',
             password: hashedPassword,
