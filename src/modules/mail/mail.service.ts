@@ -68,7 +68,7 @@ export class MailService {
     return 'https://www.premiertaxschool.com';
   }
 
-  private async sendMail(to: string, subject: string, htmlContent: string) {
+  private async sendMail(to: string, subject: string, htmlContent: string, customPlainText?: string) {
     if (!to || typeof to !== 'string' || !to.includes('@')) {
       this.logger.warn(`Skipping email dispatch: recipient address "${to}" is invalid or blank.`);
       return;
@@ -76,19 +76,15 @@ export class MailService {
 
     const senderEmail = process.env.SMTP_USER || 'recyconnect5@gmail.com';
     const from = process.env.SMTP_FROM || `Premier Academy <${senderEmail}>`;
-    const plainText = this.stripHtml(htmlContent);
+    const plainText = customPlainText || this.stripHtml(htmlContent);
 
     try {
       const info = await this.transporter.sendMail({
         from,
         to,
-        replyTo: senderEmail,
         subject,
         text: plainText,
         html: htmlContent,
-        headers: {
-          'X-Entity-Ref-ID': `lms-${Date.now()}`,
-        },
       });
       this.logger.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
       return info;
@@ -98,252 +94,246 @@ export class MailService {
     }
   }
 
-  // Common wrapper styling for professional templates
+  // Pure table-based layout with inlined CSS for maximum inbox deliverability
   private getEmailWrapper(title: string, bodyHtml: string): string {
     const appUrl = this.getAppUrl();
     const displayDomain = appUrl.replace(/^https?:\/\//, '');
 
-    return `
-      <!DOCTYPE html>
-      <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="x-apple-disable-message-reformatting">
-        <title>${title}</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f3f4f6;
-            margin: 0;
-            padding: 0;
-            -webkit-font-smoothing: antialiased;
-          }
-          .email-container {
-            max-width: 600px;
-            margin: 40px auto;
-            background: #ffffff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e5e7eb;
-          }
-          .email-header {
-            background-color: #1e3a8a;
-            background-image: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
-            padding: 32px;
-            text-align: center;
-          }
-          .email-header h1 {
-            color: #ffffff;
-            margin: 0;
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-          }
-          .email-header p {
-            color: #93c5fd;
-            margin: 8px 0 0 0;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            font-weight: 600;
-          }
-          .email-body {
-            padding: 40px 32px;
-            color: #374151;
-            line-height: 1.6;
-          }
-          .email-body h2 {
-            font-size: 20px;
-            color: #111827;
-            margin-top: 0;
-            font-weight: 700;
-          }
-          .email-body p {
-            margin-top: 0;
-            margin-bottom: 16px;
-          }
-          .email-footer {
-            background-color: #f9fafb;
-            padding: 24px 32px;
-            text-align: center;
-            border-top: 1px solid #f3f4f6;
-            font-size: 12px;
-            color: #6b7280;
-          }
-          .email-footer a {
-            color: #2563eb;
-            text-decoration: none;
-            font-weight: 500;
-          }
-          .btn-primary {
-            display: inline-block;
-            background-color: #10b981;
-            color: #ffffff !important;
-            text-decoration: none;
-            padding: 12px 28px;
-            font-weight: 700;
-            border-radius: 8px;
-            margin-top: 24px;
-            font-size: 14px;
-            text-align: center;
-            transition: background-color 0.2s;
-          }
-          .status-badge {
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 20px;
-          }
-          .status-approved {
-            background-color: #d1fae5;
-            color: #065f46;
-          }
-          .status-pending {
-            background-color: #dbeafe;
-            color: #1e40af;
-          }
-          .status-rejected {
-            background-color: #fee2e2;
-            color: #991b1b;
-          }
-          .info-list {
-            background-color: #f9fafb;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            border: 1px solid #f3f4f6;
-            list-style: none;
-          }
-          .info-list li {
-            margin-bottom: 12px;
-            font-size: 14px;
-          }
-          .info-list li:last-child {
-            margin-bottom: 0;
-          }
-          .info-list strong {
-            color: #111827;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          <div class="email-header">
-            <h1>Premier Academy</h1>
-            <p>Tax & Accounting School</p>
-          </div>
-          <div class="email-body">
-            ${bodyHtml}
-          </div>
-          <div class="email-footer">
-            <p>&copy; ${new Date().getFullYear()} Premier LMS. All rights reserved.</p>
-            <p>Need support? Visit our website at <a href="${appUrl}" target="_blank" rel="noopener noreferrer">${displayDomain}</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f3f4f6; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+          
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background-color: #1e3a8a; padding: 32px 24px;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.3px;">Premier Academy</h1>
+              <p style="color: #93c5fd; margin: 6px 0 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">Tax &amp; Accounting School</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 36px 32px; color: #374151; font-size: 15px; line-height: 1.6;">
+              ${bodyHtml}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="background-color: #f9fafb; padding: 24px 32px; border-top: 1px solid #f3f4f6; font-size: 12px; color: #6b7280; line-height: 1.5;">
+              <p style="margin: 0 0 6px 0;">&copy; ${new Date().getFullYear()} Premier Academy. All rights reserved.</p>
+              <p style="margin: 0;">Portal: <a href="${appUrl}" target="_blank" style="color: #2563eb; text-decoration: none;">${displayDomain}</a></p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
   }
 
   async sendAdmissionReceived(to: string, studentName: string, courses: string[]) {
+    const appUrl = this.getAppUrl();
     const courseList = Array.isArray(courses) ? courses : [];
-    const html = this.getEmailWrapper(
-      'Admission Application Received',
-      `
-        <h2>Dear ${studentName || 'Student'},</h2>
-        <div class="status-badge status-pending">Application Received</div>
-        <p>Thank you for submitting your admission application to Premier Academy! We have successfully received your form and our admissions committee is currently reviewing it.</p>
-        
-        <p><strong>Selected Courses:</strong></p>
-        <ul style="padding-left: 20px; margin: 12px 0; font-size: 14px; color: #4b5563;">
-          ${courseList.map(c => `<li>${c}</li>`).join('')}
-        </ul>
 
-        <p>A representative will review your credentials and get back to you shortly. You will receive an email containing your status updates and portal login credentials once approved.</p>
-        <p>Best regards,<br>Admissions Board<br><strong>Premier Academy</strong></p>
-      `
-    );
+    const bodyHtml = `
+      <h2 style="font-size: 19px; color: #111827; margin: 0 0 16px 0; font-weight: 700;">Dear ${studentName || 'Student'},</h2>
+      <p style="margin: 0 0 16px 0; color: #374151;">Thank you for submitting your admission application to Premier Academy! We have successfully received your form and our admissions team is currently reviewing it.</p>
+      
+      <p style="margin: 0 0 8px 0; font-weight: 600; color: #111827;">Selected Courses:</p>
+      <ul style="padding-left: 20px; margin: 0 0 20px 0; font-size: 14px; color: #4b5563;">
+        ${courseList.map(c => `<li style="margin-bottom: 4px;">${c}</li>`).join('')}
+      </ul>
 
-    return this.sendMail(to, 'Premier Academy: Admission Application Received', html);
+      <p style="margin: 0 0 24px 0; color: #374151;">Our admissions officer will review your application shortly. Once approved, you will receive an email containing your portal login credentials.</p>
+      <p style="margin: 0; color: #475569; font-size: 14px;">Best regards,<br><strong>Admissions Board</strong><br>Premier Academy</p>
+    `;
+
+    const plainText = `Dear ${studentName || 'Student'},
+
+Thank you for submitting your admission application to Premier Academy! We have successfully received your form and our admissions team is currently reviewing it.
+
+Selected Courses:
+${courseList.map(c => `- ${c}`).join('\n')}
+
+Our admissions officer will review your application shortly. Once approved, you will receive an email containing your portal login credentials.
+
+Best regards,
+Admissions Board
+Premier Academy
+${appUrl}
+`;
+
+    const html = this.getEmailWrapper('Admission Application Received', bodyHtml);
+    return this.sendMail(to, 'Premier Academy: Admission Application Received', html, plainText);
   }
 
   async sendAdmissionApproved(to: string, studentName: string, loginPassword?: string) {
     const appUrl = this.getAppUrl();
-    
+    const displayDomain = appUrl.replace(/^https?:\/\//, '');
+
     let credentialsHtml = '';
+    let credentialsText = '';
+
     if (loginPassword) {
       credentialsHtml = `
-        <p>A student account has been created for you. Please use the following details to log in to your dashboard:</p>
-        <ul class="info-list">
-          <li><strong>Portal URL:</strong> <a href="${appUrl}/auth/login" style="color: #2563eb; text-decoration: none;">${appUrl.replace(/https?:\/\//, '')}/auth/login</a></li>
-          <li><strong>Email Address:</strong> ${to}</li>
-          <li><strong>Temporary Password:</strong> <code style="font-family: monospace; font-size: 15px; color: #1e3a8a; background: #eff6ff; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${loginPassword}</code></li>
-        </ul>
-        <p style="font-size: 12px; color: #6b7280; font-style: italic;">* Note: For security, we recommend changing your password from your dashboard settings page immediately after your first log in.</p>
+        <p style="margin: 0 0 16px 0; color: #374151;">Your student portal account has been activated. Please use the following details to log in to your dashboard:</p>
+        
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 20px 0;">
+          <tr>
+            <td style="padding: 16px 20px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; color: #334155;">
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600; width: 140px;">Portal Address:</td>
+                  <td style="padding: 6px 0;"><a href="${appUrl}/auth/login" style="color: #2563eb; text-decoration: none; font-weight: 500;">${displayDomain}/auth/login</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600;">Email:</td>
+                  <td style="padding: 6px 0; font-family: monospace; font-size: 14px; color: #0f172a;">${to}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600;">Temporary Password:</td>
+                  <td style="padding: 6px 0; font-family: monospace; font-size: 15px; font-weight: 700; color: #1e3a8a;">${loginPassword}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0 16px 0;">
+          <tr>
+            <td align="center">
+              <a href="${appUrl}/auth/login" target="_blank" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 13px 32px; font-size: 14px; font-weight: 700; border-radius: 6px;">Sign In to Student Portal</a>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size: 12px; color: #64748b; margin: 12px 0 24px 0; text-align: center;">For security, please update your password after your first login.</p>
       `;
+
+      credentialsText = `
+Your student portal account has been activated:
+- Portal URL: ${appUrl}/auth/login
+- Email: ${to}
+- Temporary Password: ${loginPassword}
+
+Sign in here: ${appUrl}/auth/login
+
+For security, please update your password after your first login.
+`;
     } else {
       credentialsHtml = `
-        <p>Since you already have a registered account under this email address, you can access your enrolled courses directly by logging into your dashboard.</p>
-        <ul class="info-list">
-          <li><strong>Portal URL:</strong> <a href="${appUrl}/auth/login" style="color: #2563eb; text-decoration: none;">${appUrl.replace(/https?:\/\//, '')}/auth/login</a></li>
-          <li><strong>Email Address:</strong> ${to}</li>
-        </ul>
+        <p style="margin: 0 0 16px 0; color: #374151;">You can access your enrolled courses directly by logging into your student dashboard:</p>
+        
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 20px 0;">
+          <tr>
+            <td style="padding: 16px 20px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; color: #334155;">
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600; width: 140px;">Portal Address:</td>
+                  <td style="padding: 6px 0;"><a href="${appUrl}/auth/login" style="color: #2563eb; text-decoration: none; font-weight: 500;">${displayDomain}/auth/login</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-weight: 600;">Email:</td>
+                  <td style="padding: 6px 0; font-family: monospace; font-size: 14px; color: #0f172a;">${to}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0 16px 0;">
+          <tr>
+            <td align="center">
+              <a href="${appUrl}/auth/login" target="_blank" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 13px 32px; font-size: 14px; font-weight: 700; border-radius: 6px;">Sign In to Student Portal</a>
+            </td>
+          </tr>
+        </table>
       `;
+
+      credentialsText = `
+You can access your enrolled courses directly by logging into your student dashboard:
+- Portal URL: ${appUrl}/auth/login
+- Email: ${to}
+
+Sign in here: ${appUrl}/auth/login
+`;
     }
 
-    const html = this.getEmailWrapper(
-      'Admission Approved',
-      `
-        <h2>Congratulations ${studentName || 'Student'}!</h2>
-        <div class="status-badge status-approved">Admission Approved</div>
-        <p>We are thrilled to inform you that your application for admission to Premier Academy has been approved. Welcome to our student cohort!</p>
-        
-        ${credentialsHtml}
+    const bodyHtml = `
+      <h2 style="font-size: 19px; color: #111827; margin: 0 0 16px 0; font-weight: 700;">Dear ${studentName || 'Student'},</h2>
+      <p style="margin: 0 0 20px 0; color: #374151;">Congratulations! Your application for admission to Premier Academy has been approved. Welcome to our student cohort.</p>
+      
+      ${credentialsHtml}
 
-        <div style="text-align: center; margin-top: 30px;">
-          <a href="${appUrl}/auth/login" class="btn-primary">Access Student Portal</a>
-        </div>
+      <p style="margin: 0; color: #475569; font-size: 14px;">Welcome aboard!<br><strong>Admissions Board</strong><br>Premier Academy</p>
+    `;
 
-        <p style="margin-top: 30px;">If you have any questions or require support setting up your account, do not hesitate to contact our admissions officer.</p>
-        <p>Welcome aboard!<br>Admissions Board<br><strong>Premier Academy</strong></p>
-      `
-    );
+    const plainText = `Dear ${studentName || 'Student'},
 
-    return this.sendMail(to, 'Premier Academy: Admission Approved & Portal Login Details', html);
+Congratulations! Your application for admission to Premier Academy has been approved. Welcome to our student cohort.
+${credentialsText}
+Welcome aboard!
+Admissions Board
+Premier Academy
+${appUrl}
+`;
+
+    const html = this.getEmailWrapper('Admission Approved', bodyHtml);
+    return this.sendMail(to, 'Premier Academy: Admission Approved & Portal Login Details', html, plainText);
   }
 
   async sendAdmissionRejected(to: string, studentName: string, remarks?: string) {
+    const appUrl = this.getAppUrl();
+
     const remarksHtml = remarks 
-      ? `<p><strong>Feedback / Reason:</strong></p>
-         <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; color: #991b1b; padding: 16px; border-radius: 8px; font-size: 14px; margin: 16px 0;">
-           ${remarks}
-         </div>`
+      ? `<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; margin: 16px 0;">
+           <tr>
+             <td style="padding: 14px 18px; color: #991b1b; font-size: 14px;">
+               <strong>Feedback / Reason:</strong><br />${remarks}
+             </td>
+           </tr>
+         </table>`
       : '';
 
-    const html = this.getEmailWrapper(
-      'Admission Application Status',
-      `
-        <h2>Dear ${studentName || 'Student'},</h2>
-        <div class="status-badge status-rejected">Application Rejected</div>
-        <p>Thank you for your interest in Premier Academy. Our admissions department has finished reviewing your application.</p>
-        
-        <p>Regretfully, we are unable to approve your application at this time.</p>
-        
-        ${remarksHtml}
+    const bodyHtml = `
+      <h2 style="font-size: 19px; color: #111827; margin: 0 0 16px 0; font-weight: 700;">Dear ${studentName || 'Student'},</h2>
+      <p style="margin: 0 0 16px 0; color: #374151;">Thank you for your interest in Premier Academy. Our admissions department has reviewed your application.</p>
+      
+      <p style="margin: 0 0 16px 0; color: #374151;">Regretfully, we are unable to approve your application at this time.</p>
+      
+      ${remarksHtml}
 
-        <p>If you have any questions or believe this is an error, please contact the admissions support desk.</p>
-        <p>Best regards,<br>Admissions Board<br><strong>Premier Academy</strong></p>
-      `
-    );
+      <p style="margin: 20px 0 0 0; color: #475569; font-size: 14px;">If you have any questions, please contact our admissions office.<br><br>Best regards,<br><strong>Admissions Board</strong><br>Premier Academy</p>
+    `;
 
-    return this.sendMail(to, 'Premier Academy: Admission Application Status Update', html);
+    const plainText = `Dear ${studentName || 'Student'},
+
+Thank you for your interest in Premier Academy. Our admissions department has reviewed your application.
+
+Regretfully, we are unable to approve your application at this time.
+${remarks ? `\nFeedback / Reason: ${remarks}\n` : ''}
+If you have any questions, please contact our admissions office.
+
+Best regards,
+Admissions Board
+Premier Academy
+${appUrl}
+`;
+
+    const html = this.getEmailWrapper('Admission Application Status', bodyHtml);
+    return this.sendMail(to, 'Premier Academy: Admission Application Status Update', html, plainText);
   }
 
   async sendClassScheduled(
@@ -354,8 +344,10 @@ export class MailService {
     scheduledStart: Date, 
     jitsiLink: string
   ) {
+    const appUrl = this.getAppUrl();
     let formattedDate = 'Scheduled Date';
     let formattedTime = 'Scheduled Time';
+
     try {
       if (scheduledStart) {
         const dObj = new Date(scheduledStart);
@@ -379,31 +371,69 @@ export class MailService {
       this.logger.error('Error formatting class start date:', e);
     }
 
-    const html = this.getEmailWrapper(
-      'New Live Class Scheduled',
-      `
-        <h2>Hello ${studentName || 'Student'},</h2>
-        <p>A new live class has been scheduled for your course cohort. Please save the details below:</p>
-        
-        <ul class="info-list">
-          <li><strong>Course Name:</strong> ${courseName}</li>
-          <li><strong>Class Title:</strong> ${classTitle}</li>
-          <li><strong>Date:</strong> ${formattedDate}</li>
-          <li><strong>Time:</strong> ${formattedTime}</li>
-        </ul>
+    const bodyHtml = `
+      <h2 style="font-size: 19px; color: #111827; margin: 0 0 16px 0; font-weight: 700;">Hello ${studentName || 'Student'},</h2>
+      <p style="margin: 0 0 20px 0; color: #374151;">A new live class session has been scheduled for your course. Please review the details below:</p>
+      
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 20px 0;">
+        <tr>
+          <td style="padding: 16px 20px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; color: #334155;">
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; width: 120px;">Course:</td>
+                <td style="padding: 6px 0; color: #0f172a; font-weight: 600;">${courseName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Class Title:</td>
+                <td style="padding: 6px 0; color: #0f172a;">${classTitle}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Date:</td>
+                <td style="padding: 6px 0; color: #0f172a;">${formattedDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600;">Time:</td>
+                <td style="padding: 6px 0; color: #0f172a;">${formattedTime}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
 
-        <p>To join the live interactive class, please click the button below at the scheduled time to enter the secure portal session:</p>
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0 16px 0;">
+        <tr>
+          <td align="center">
+            <a href="${jitsiLink}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 13px 32px; font-size: 14px; font-weight: 700; border-radius: 6px;">Join Live Class Session</a>
+          </td>
+        </tr>
+      </table>
 
-        <div style="text-align: center; margin-top: 30px;">
-          <a href="${jitsiLink}" class="btn-primary" style="background-color: #2563eb;">Join Live Class Session</a>
-        </div>
+      <p style="font-size: 12px; color: #64748b; margin: 12px 0 24px 0; text-align: center;">Please ensure your camera and microphone are configured before joining.</p>
 
-        <p style="margin-top: 30px; font-size: 12px; color: #6b7280; text-align: center;">
-          Ensure your camera and microphone are configured correctly before joining.
-        </p>
-      `
-    );
+      <p style="margin: 0; color: #475569; font-size: 14px;">Best regards,<br><strong>Academic Department</strong><br>Premier Academy</p>
+    `;
 
-    return this.sendMail(to, `Premier Academy: Live Class Scheduled - ${classTitle}`, html);
+    const plainText = `Hello ${studentName || 'Student'},
+
+A new live class session has been scheduled for your course.
+
+Class Details:
+- Course: ${courseName}
+- Title: ${classTitle}
+- Date: ${formattedDate}
+- Time: ${formattedTime}
+
+Join Link: ${jitsiLink}
+
+Please ensure your microphone and audio are configured before joining.
+
+Best regards,
+Academic Department
+Premier Academy
+${appUrl}
+`;
+
+    const html = this.getEmailWrapper('New Live Class Scheduled', bodyHtml);
+    return this.sendMail(to, `Premier Academy: Live Class Scheduled - ${classTitle}`, html, plainText);
   }
 }
