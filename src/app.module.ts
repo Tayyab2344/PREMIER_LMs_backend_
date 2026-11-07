@@ -12,6 +12,7 @@ import { ClassModule } from './modules/class/class.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { MailModule } from './modules/mail/mail.module';
+import { IapModule } from './modules/iap/iap.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -48,6 +49,7 @@ import { AppController } from './app.controller';
     UploadModule,
     BatchModule,
     MailModule,
+    IapModule,
   ],
   controllers: [AppController],
   providers: [

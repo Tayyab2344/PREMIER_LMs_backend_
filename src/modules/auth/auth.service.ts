@@ -1,15 +1,22 @@
 // Force TS re-evaluation after Prisma generation
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async login(email: string, password: string, ip = '127.0.0.1', userAgent = 'unknown') {
     const user = await this.prisma.user.findUnique({
@@ -199,7 +206,13 @@ export class AuthService {
     return { message: 'Password changed successfully. Please login again.' };
   }
 
-  async register(name: string, email: string, password: string) {
+  async register(
+    name: string,
+    email: string,
+    password: string,
+    ip = '127.0.0.1',
+    userAgent = 'unknown',
+  ) {
     const normalizedEmail = email.toLowerCase();
 
     // Check if user already exists
@@ -208,7 +221,9 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new ConflictException('An account with this email already exists. Please sign in.');
+      throw new ConflictException(
+        'An account with this email already exists. Please sign in.',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -223,13 +238,60 @@ export class AuthService {
       },
     });
 
-    // Auto-login: generate JWT
+    // Auto-login: generate JWT (30 days for students matching login())
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '30d' });
 
+    // Invalidate any previous sessions (single-session enforcement)
+    await this.prisma.deviceSession.updateMany({
+      where: { userId: user.id, isActive: true },
+      data: { isActive: false },
+    });
+
+    // Create DeviceSession record so SingleSessionGuard validates subsequent requests
+    const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
+    await this.prisma.deviceSession.create({
+      data: {
+        userId: user.id,
+        token: accessToken,
+        ipAddress: ip,
+        userAgent,
+        deviceType: isMobile ? 'Mobile' : 'Desktop',
+        os: userAgent.includes('iPhone') || userAgent.includes('iPad')
+          ? 'iOS'
+          : userAgent.includes('Android')
+            ? 'Android'
+            : userAgent.includes('Windows')
+              ? 'Windows'
+              : userAgent.includes('Mac')
+                ? 'macOS'
+                : 'Linux',
+        browser: userAgent.includes('Chrome')
+          ? 'Chrome'
+          : userAgent.includes('Firefox')
+            ? 'Firefox'
+            : userAgent.includes('Safari')
+              ? 'Safari'
+              : 'App',
+        isActive: true,
+      },
+    });
+
+    // Store token for single-session enforcement
     await this.prisma.user.update({
       where: { id: user.id },
       data: { currentToken: accessToken },
+    });
+
+    // Audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'REGISTER',
+        ipAddress: ip,
+        userAgent,
+        details: `Successful registration from ${isMobile ? 'Mobile' : 'Desktop'} client.`,
+      },
     });
 
     return {
@@ -239,7 +301,60 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        isActive: user.isActive,
+        enrollments: [],
       },
+    };
+  }
+
+  async deleteAccount(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role === 'admin' || user.role === 'ADMIN') {
+      throw new ForbiddenException(
+        'Admin accounts cannot be deleted via self-service.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1. Device sessions
+      await tx.deviceSession.deleteMany({ where: { userId } });
+
+      // 2. Playback histories
+      await tx.playbackHistory.deleteMany({ where: { userId } });
+
+      // 3. Attendances
+      await tx.attendance.deleteMany({ where: { userId } });
+
+      // 4. Live session permissions & waiting participants
+      await tx.participantPermission.deleteMany({ where: { userId } });
+      await tx.waitingParticipant.deleteMany({ where: { userId } });
+
+      // 5. Audit logs
+      await tx.auditLog.deleteMany({ where: { userId } });
+
+      // 6. Enrollments
+      await tx.enrollment.deleteMany({ where: { userId } });
+
+      // 7. Unlink admissions if any
+      await tx.admission.updateMany({
+        where: { userId },
+        data: { userId: null },
+      });
+
+      // 8. Delete user record permanently
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    return {
+      success: true,
+      message: 'Account and associated personal data deleted permanently.',
     };
   }
 }

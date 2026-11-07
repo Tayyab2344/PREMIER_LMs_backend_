@@ -115,6 +115,10 @@ export class CreateCourseDto {
 
   @IsOptional()
   @IsString()
+  appleProductId?: string;
+
+  @IsOptional()
+  @IsString()
   thumbnail?: string;
 
   @IsOptional()
@@ -208,6 +212,10 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   badge?: string;
+
+  @IsOptional()
+  @IsString()
+  appleProductId?: string;
 
   @IsOptional()
   @IsString()

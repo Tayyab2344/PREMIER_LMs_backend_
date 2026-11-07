@@ -23,6 +23,7 @@ const COURSES_DATA = [
     duration: 16,
     language: 'English & Urdu',
     badge: 'bestseller',
+    appleProductId: 'com.premiertaxschool.course.income_tax',
     thumbnail: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=340&fit=crop',
     instructorName: 'Barrister Ahmed Khan',
     instructorTitle: 'Senior Tax Consultant & SC Advocate',
@@ -323,7 +324,7 @@ async function main() {
   await prisma.admission.deleteMany();
   await prisma.user.deleteMany();
   await prisma.batch.deleteMany();
-  
+
   // Clean modules, lessons, reviews
   await prisma.courseReview.deleteMany();
   await prisma.courseLesson.deleteMany();
@@ -336,7 +337,7 @@ async function main() {
   for (let idx = 0; idx < Math.min(10, COURSES_DATA.length); idx++) {
     const course = COURSES_DATA[idx];
     const modules = makeSeedModules(idx);
-    
+
     // Choose 2 reviews for each course randomly
     const r1 = SEED_REVIEWS[idx % SEED_REVIEWS.length];
     const r2 = SEED_REVIEWS[(idx + 2) % SEED_REVIEWS.length];
@@ -353,6 +354,7 @@ async function main() {
         duration: course.duration,
         language: course.language,
         badge: course.badge,
+        appleProductId: (course as any).appleProductId ?? null,
         thumbnail: course.thumbnail,
         instructorName: course.instructorName,
         instructorTitle: course.instructorTitle,

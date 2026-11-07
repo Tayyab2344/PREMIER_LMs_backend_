@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   UseGuards,
   HttpCode,
@@ -30,13 +31,24 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 registrations per minute
-  async register(@Body() registerDto: RegisterDto) {
+  @Throttle({ short: { limit: 10, ttl: 60000 } }) // 10 registrations per minute for App Store Review
+  async register(@Body() registerDto: RegisterDto, @Req() req: any) {
+    const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'unknown';
     return this.authService.register(
       registerDto.name,
       registerDto.email,
       registerDto.password,
+      ip,
+      userAgent,
     );
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'), SingleSessionGuard)
+  async deleteAccount(@CurrentUser('sub') userId: string) {
+    return this.authService.deleteAccount(userId);
   }
 
   @Post('logout')

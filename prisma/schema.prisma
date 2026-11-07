@@ -18,6 +18,7 @@ model Course {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   badge                String?           @default("new")
+  appleProductId       String?           @unique
   category             String            @default("Tax & Accounting")
   description          String            @default("Learn professional practices in tax & accounting.")
   duration             Int               @default(36)
@@ -165,6 +166,8 @@ model Enrollment {
   endDate            DateTime
   isActive           Boolean   @default(true)
   accessType         String    @default("FULL")
+  purchaseSource     String?   @default("MANUAL")
+  appleTransactionId String?   @unique
   isRevisionPaid     Boolean   @default(false)
   revisionExpiryDate DateTime?
   createdAt          DateTime  @default(now())
@@ -177,6 +180,7 @@ model Enrollment {
   @@index([courseId])
   @@index([batchId])
   @@index([registrationNo])
+  @@index([appleTransactionId])
 }
 
 model Class {
