@@ -5,9 +5,9 @@ export class VerifyAppleIapDto {
   @IsNotEmpty()
   productId: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  courseId: string;
+  courseId?: string;
 
   @IsString()
   @IsNotEmpty()

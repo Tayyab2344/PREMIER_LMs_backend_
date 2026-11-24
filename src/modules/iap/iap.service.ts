@@ -8,6 +8,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VerifyAppleIapDto } from './dto/verify-apple.dto';
 import { Prisma } from '@prisma/client';
+import { SignedDataVerifier, Environment } from '@apple/app-store-server-library';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class IapService {
@@ -23,19 +26,21 @@ export class IapService {
    */
   async verifyApplePurchase(userId: string, dto: VerifyAppleIapDto) {
     this.logger.log(
-      `Processing Apple IAP verification for user ${userId}, course ${dto.courseId}, product ${dto.productId}`,
+      `Processing Apple IAP verification for user ${userId}, course ${dto.courseId ?? 'unspecified'}, product ${dto.productId}`,
     );
 
     // 1. Verify Course exists and matches Product ID
-    let course = await this.prisma.course.findUnique({
-      where: { id: dto.courseId },
-      include: {
-        batches: {
-          where: { isActive: true, status: 'admission' },
-          orderBy: { startDate: 'asc' },
+    let course = dto.courseId
+      ? await this.prisma.course.findUnique({
+        where: { id: dto.courseId },
+        include: {
+          batches: {
+            where: { isActive: true, status: 'admission' },
+            orderBy: { startDate: 'asc' },
+          },
         },
-      },
-    });
+      })
+      : null;
 
     if (!course) {
       course = await this.prisma.course.findFirst({
@@ -55,7 +60,9 @@ export class IapService {
     }
 
     if (!course) {
-      throw new NotFoundException(`Course not found with id: ${dto.courseId}`);
+      throw new NotFoundException(
+        `Course not found matching productId "${dto.productId}"${dto.courseId ? ` or courseId "${dto.courseId}"` : ''}.`,
+      );
     }
 
     if (!course.isActive) {
@@ -119,7 +126,7 @@ export class IapService {
     const existingByUserAndCourse = await this.prisma.enrollment.findFirst({
       where: {
         userId,
-        courseId: dto.courseId,
+        courseId: course.id,
         isActive: true,
       },
       include: {
@@ -130,7 +137,7 @@ export class IapService {
 
     if (existingByUserAndCourse) {
       this.logger.log(
-        `User ${userId} already has an active enrollment for course ${dto.courseId}. Updating transaction link.`,
+        `User ${userId} already has an active enrollment for course "${course.name}" (${course.id}). Updating transaction link.`,
       );
       const updated = await this.prisma.enrollment.update({
         where: { id: existingByUserAndCourse.id },
@@ -182,7 +189,7 @@ export class IapService {
     const enrollment = await this.prisma.enrollment.create({
       data: {
         userId,
-        courseId: dto.courseId,
+        courseId: course.id,
         batchId: batch?.id || null,
         batchName: batch?.name || null,
         registrationNo,
@@ -213,8 +220,72 @@ export class IapService {
   }
 
   /**
+   * Loads Apple Root CA certificates from the certs directory if present.
+   */
+  private getRootCertificates(): Buffer[] {
+    const candidateDirs = [
+      path.resolve(__dirname, 'certs'),
+      path.resolve(process.cwd(), 'src', 'modules', 'iap', 'certs'),
+      path.resolve(process.cwd(), 'dist', 'src', 'modules', 'iap', 'certs'),
+      path.resolve(process.cwd(), 'dist', 'modules', 'iap', 'certs'),
+    ];
+    for (const dir of candidateDirs) {
+      try {
+        if (fs.existsSync(dir)) {
+          const certFiles = fs
+            .readdirSync(dir)
+            .filter((f) => f.endsWith('.cer') || f.endsWith('.pem'));
+          if (certFiles.length > 0) {
+            return certFiles.map((f) => fs.readFileSync(path.join(dir, f)));
+          }
+        }
+      } catch (err) {
+        this.logger.debug(`Could not read certs from ${dir}: ${err}`);
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Validates decoded JWS payload claims against expected business parameters.
+   */
+  private validateDecodedJwsPayload(
+    payload: any,
+    expectedProductId: string,
+    providedTxId: string | undefined,
+    isSandbox: boolean,
+    expectedBundleId: string,
+  ): { transactionId: string; isSandbox: boolean } {
+    // 1. Check revocation / refund
+    if (payload.revocationDate) {
+      throw new BadRequestException(
+        'This Apple In-App Purchase has been revoked or refunded.',
+      );
+    }
+
+    // 2. Validate product ID
+    if (payload.productId && payload.productId !== expectedProductId) {
+      throw new BadRequestException(
+        `JWS transaction product (${payload.productId}) does not match expected product (${expectedProductId}).`,
+      );
+    }
+
+    // 3. Validate bundle ID
+    if (payload.bundleId && payload.bundleId !== expectedBundleId) {
+      this.logger.warn(
+        `StoreKit 2 bundleId (${payload.bundleId}) does not match APPLE_BUNDLE_ID (${expectedBundleId}).`,
+      );
+    }
+
+    const txId = String(
+      payload.transactionId || providedTxId || `jws-${Date.now()}`,
+    );
+    return { transactionId: txId, isSandbox };
+  }
+
+  /**
    * Verifies receipt payload supporting both:
-   * 1. StoreKit 2 Signed JWS Transactions (starts with 'eyJ...')
+   * 1. StoreKit 2 Signed JWS Transactions (starts with 'eyJ...') with @apple/app-store-server-library
    * 2. StoreKit 1 / legacy base64 receipt verification with automatic Sandbox (status 21007) fallback.
    */
   private async verifyAppleReceiptOrJws(
@@ -239,47 +310,89 @@ export class IapService {
 
     // ── Scenario A: StoreKit 2 JWS Signed Transaction ──────────────────────────
     if (trimmed.startsWith('eyJ') && trimmed.split('.').length === 3) {
+      const bundleId =
+        this.configService.get<string>('APPLE_BUNDLE_ID') ||
+        'com.rajagulfam.premier';
+      const appAppleId = Number(
+        this.configService.get<string>('APPLE_APP_ID') || '6831545320',
+      );
+
+      // Attempt cryptographic validation with @apple/app-store-server-library using Apple Root CAs
+      const rootCerts = this.getRootCertificates();
+      if (rootCerts.length > 0) {
+        // Try Production SignedDataVerifier first
+        try {
+          const prodVerifier = new SignedDataVerifier(
+            rootCerts,
+            false,
+            Environment.PRODUCTION,
+            bundleId,
+            appAppleId,
+          );
+          const payload = await prodVerifier.verifyAndDecodeTransaction(trimmed);
+          this.logger.log(
+            `StoreKit 2 JWS cryptographically verified via Production SignedDataVerifier (tx: ${payload.transactionId}, prod: ${payload.productId})`,
+          );
+          return this.validateDecodedJwsPayload(
+            payload,
+            expectedProductId,
+            providedTxId,
+            false,
+            bundleId,
+          );
+        } catch (prodErr: any) {
+          this.logger.log(
+            `StoreKit 2 Production SignedDataVerifier: ${prodErr.message}. Trying Sandbox verifier...`,
+          );
+          try {
+            const sandboxVerifier = new SignedDataVerifier(
+              rootCerts,
+              false,
+              Environment.SANDBOX,
+              bundleId,
+            );
+            const payload = await sandboxVerifier.verifyAndDecodeTransaction(trimmed);
+            this.logger.log(
+              `StoreKit 2 JWS cryptographically verified via Sandbox SignedDataVerifier (tx: ${payload.transactionId}, prod: ${payload.productId})`,
+            );
+            return this.validateDecodedJwsPayload(
+              payload,
+              expectedProductId,
+              providedTxId,
+              true,
+              bundleId,
+            );
+          } catch (sandboxErr: any) {
+            this.logger.warn(
+              `StoreKit 2 Sandbox SignedDataVerifier also failed: ${sandboxErr.message}. Falling back to structural claims check...`,
+            );
+          }
+        }
+      } else {
+        this.logger.warn(
+          'Apple Root CA certificates not found in certs directory. Falling back to structural JWS validation.',
+        );
+      }
+
+      // Structural JWS claims fallback
       try {
         const parts = trimmed.split('.');
         const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
         const payload = JSON.parse(payloadJson);
-
-        this.logger.log(
-          `Decoded StoreKit 2 JWS payload for transaction: ${payload.transactionId}, product: ${payload.productId}`,
-        );
-
-        // Check revocation
-        if (payload.revocationDate) {
-          throw new BadRequestException(
-            'This Apple In-App Purchase has been revoked or refunded.',
-          );
-        }
-
-        // Validate product ID
-        if (payload.productId && payload.productId !== expectedProductId) {
-          throw new BadRequestException(
-            `JWS transaction product (${payload.productId}) does not match expected product (${expectedProductId}).`,
-          );
-        }
-
-        // Validate bundle ID if configured (defaults to com.rajagulfam.premier)
-        const expectedBundleId =
-          this.configService.get<string>('APPLE_BUNDLE_ID') ||
-          'com.rajagulfam.premier';
-        if (expectedBundleId && payload.bundleId && payload.bundleId !== expectedBundleId) {
-          this.logger.warn(
-            `StoreKit 2 bundleId (${payload.bundleId}) does not match APPLE_BUNDLE_ID (${expectedBundleId}).`,
-          );
-        }
-
-        const txId = String(payload.transactionId || providedTxId || `jws-${Date.now()}`);
         const isSandbox =
           payload.environment === 'Sandbox' || payload.environment === 'Xcode';
-
-        return { transactionId: txId, isSandbox };
+        return this.validateDecodedJwsPayload(
+          payload,
+          expectedProductId,
+          providedTxId,
+          isSandbox,
+          bundleId,
+        );
       } catch (err: any) {
         if (err instanceof BadRequestException) throw err;
-        this.logger.warn(`Failed to parse StoreKit 2 JWS token: ${err.message}. Trying legacy verifyReceipt fallback...`);
+        this.logger.warn(
+          `Failed to parse StoreKit 2 JWS token: ${err.message}. Trying legacy verifyReceipt fallback...`,
+        );
       }
     }
 
