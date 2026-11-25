@@ -12,6 +12,18 @@ async function bootstrap() {
 
   configureApp(app);
 
+  // Automated PostgreSQL schema sync on production / Render container boot
+  if (process.env.RENDER || (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL)) {
+    try {
+      const { execSync } = require('child_process');
+      console.log('[Prisma] Synchronizing database schema via db push...');
+      execSync('npx prisma db push --skip-generate', { stdio: 'inherit' });
+      console.log('[Prisma] Schema successfully synchronized with PostgreSQL.');
+    } catch (dbErr: any) {
+      console.warn('[Prisma] Schema synchronization skipped or failed:', dbErr.message);
+    }
+  }
+
   await app.listen(port, host);
   console.log(`🚀 Premier LMS API running on http://${host}:${port}`);
 

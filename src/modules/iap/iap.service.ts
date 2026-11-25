@@ -398,7 +398,8 @@ export class IapService {
 
     // ── Scenario B: Apple verifyReceipt Endpoint (StoreKit 1 / App Store Web Service) ──
     const sharedSecret =
-      this.configService.get<string>('APPLE_SHARED_SECRET') || '';
+      this.configService.get<string>('APPLE_SHARED_SECRET') ||
+      '8a107e081131428a8d8f46c094b9fef5';
     const productionUrl = 'https://buy.itunes.apple.com/verifyReceipt';
     const sandboxUrl = 'https://sandbox.itunes.apple.com/verifyReceipt';
 
